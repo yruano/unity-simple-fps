@@ -13,7 +13,6 @@ public class MainMenu : MonoBehaviour
 
     private void Awake()
     {
-
         _document = GetComponent<UIDocument>();
         _root = _document.rootVisualElement;
 

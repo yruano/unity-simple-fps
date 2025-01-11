@@ -3,6 +3,5 @@
     <engine:VisualElement style="padding-top: 20px; padding-right: 20px; padding-bottom: 20px; padding-left: 20px;">
         <engine:Button text="Host Game" name="HostGameButton" class="button" />
         <engine:Button text="StartGame" name="StartGameButton" class="button" />
-        <engine:Button text="JoinGame" name="JoinGameButton" class="button" />
     </engine:VisualElement>
 </engine:UXML>
