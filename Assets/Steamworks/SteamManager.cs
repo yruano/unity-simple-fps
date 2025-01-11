@@ -92,5 +92,7 @@ public class SteamManager : MonoBehaviour
                 Debug.LogWarning(pchDebugText);
             }
         ));
+
+        Debug.Log("Steamwork Initialized");
     }
 }

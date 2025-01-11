@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -10,7 +11,9 @@ public class MainMenu : MonoBehaviour
     private Button _optionsGameButton;
     private Button _exitGameButton;
 
-    private void Awake() {
+    private void Awake()
+    {
+
         _document = GetComponent<UIDocument>();
         _root = _document.rootVisualElement;
 
@@ -23,15 +26,18 @@ public class MainMenu : MonoBehaviour
         _exitGameButton.RegisterCallback<ClickEvent>(OnClickExitGameButton);
     }
 
-    private void OnClickStartGameButton(ClickEvent evt) {
+    private void OnClickStartGameButton(ClickEvent evt)
+    {
         Debug.Log("Start Game");
-        SceneManager.LoadScene(Scenes.TestMap);
+        SceneManager.LoadScene(Scenes.LobbyListMenu, LoadSceneMode.Single);
     }
 
-    private void OnClickOptionsGameButton(ClickEvent evt) {
+    private void OnClickOptionsGameButton(ClickEvent evt)
+    {
         Debug.Log("Options");
     }
-    private void OnClickExitGameButton(ClickEvent evt) {
+    private void OnClickExitGameButton(ClickEvent evt)
+    {
         Debug.Log("Exit Game");
         Application.Quit();
     }

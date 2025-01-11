@@ -1,0 +1,8 @@
+<engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="project://database/Assets/Game/LobbyListMenu/LobbyListMenu.uss?fileID=7433441132597879392&amp;guid=ad2802ab9b5550b4a92ba9bf5aa47afb&amp;type=3#LobbyListMenu" />
+    <engine:VisualElement style="padding-top: 20px; padding-right: 20px; padding-bottom: 20px; padding-left: 20px;">
+        <engine:Button text="Host Game" name="HostGameButton" class="button" />
+        <engine:Button text="StartGame" name="StartGameButton" class="button" />
+        <engine:Button text="JoinGame" name="JoinGameButton" class="button" />
+    </engine:VisualElement>
+</engine:UXML>
