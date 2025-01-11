@@ -1,0 +1,5 @@
+.menu-button {
+    font-size: 40px;
+    width: 500px;
+    align-self: center;
+}
