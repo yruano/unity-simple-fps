@@ -6,17 +6,17 @@ public class TestMap : NetworkBehaviour
     [SerializeField]
     private GameObject PlayerPrefab;
 
-    void Start()
+    private void Start()
     {
         SpawnPlayerRpc();
     }
-    
 
     [Rpc(SendTo.Server)]
-    private void SpawnPlayerRpc()
+    private void SpawnPlayerRpc(RpcParams rpcParams = default)
     {
         var player = Instantiate(PlayerPrefab);
         var network_player = player.GetComponent<NetworkObject>();
-        network_player.Spawn();
+        network_player.transform.position = new(0, 2, 0);
+        network_player.SpawnWithOwnership(rpcParams.Receive.SenderClientId);
     }
 }
