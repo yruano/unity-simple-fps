@@ -69,9 +69,6 @@ public class LobbyManager : MonoBehaviour
             return;
         }
         s_instance = null;
-
-        var curPlayers = SteamMatchmaking.GetNumLobbyMembers(JoinedLobbyId.Value);
-        Debug.Log($"Lobby player count: {curPlayers}");
     }
 
     public void SetJoinedLobbyId(ulong lobbyId)
@@ -125,8 +122,9 @@ public class LobbyManager : MonoBehaviour
                 var curPlayers = SteamMatchmaking.GetNumLobbyMembers(JoinedLobbyId.Value);
                 if (curPlayers >= maxPlayers)
                 {
-                    Debug.Log($"Client kicked because server is full: {arg.m_ulSteamIDUserChanged}");
-                    SteamNetworking.CloseP2PSessionWithUser(new(arg.m_ulSteamIDUserChanged));
+                    var userName = SteamFriends.GetFriendPersonaName(new(arg.m_ulSteamIDUserChanged));
+                    Debug.LogWarning($"Client joined while the server is full: {userName}, {arg.m_ulSteamIDUserChanged}");
+                    // Steamworks api has no way to kick user...
                 }
             }
         }
@@ -145,13 +143,13 @@ public class LobbyManager : MonoBehaviour
             LeaveLobby();
         }
 
-        // // Check server is full.
-        // var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(arg.m_steamIDLobby);
-        // var curPlayers = SteamMatchmaking.GetNumLobbyMembers(arg.m_steamIDLobby);
-        // if (curPlayers >= maxPlayers)
-        // {
-        //     return;
-        // }
+        // Check server is full.
+        var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(arg.m_steamIDLobby);
+        var curPlayers = SteamMatchmaking.GetNumLobbyMembers(arg.m_steamIDLobby);
+        if (curPlayers >= maxPlayers)
+        {
+            return;
+        }
 
         // Join lobby.
         var transport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as SteamNetworkingSocketsTransport;
