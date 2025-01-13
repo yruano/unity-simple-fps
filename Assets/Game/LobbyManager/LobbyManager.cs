@@ -11,6 +11,7 @@ public class LobbyManager : MonoBehaviour
     public CSteamID? JoinedLobbyId { get; private set; }
 
     private CallResult<LobbyEnter_t> _onJoinLobby;
+    private Callback<LobbyChatUpdate_t> _onClientLobbyEvent;
     private Callback<GameLobbyJoinRequested_t> _onGameLobbyJoinRequested;
 
     private void Awake()
@@ -29,6 +30,7 @@ public class LobbyManager : MonoBehaviour
         if (SteamManager.IsInitialized)
         {
             _onJoinLobby = new(OnJoinLobby);
+            _onClientLobbyEvent = new(OnClientLobbyEvent);
             _onGameLobbyJoinRequested = new(OnGameLobbyJoinRequested);
         }
 
@@ -67,6 +69,9 @@ public class LobbyManager : MonoBehaviour
             return;
         }
         s_instance = null;
+
+        var curPlayers = SteamMatchmaking.GetNumLobbyMembers(JoinedLobbyId.Value);
+        Debug.Log($"Lobby player count: {curPlayers}");
     }
 
     public void SetJoinedLobbyId(ulong lobbyId)
@@ -108,10 +113,30 @@ public class LobbyManager : MonoBehaviour
         NetworkManager.Singleton.StartClient();
     }
 
+    private void OnClientLobbyEvent(LobbyChatUpdate_t arg)
+    {
+        // Lobby entered.
+        if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
+        {
+            if (NetworkManager.Singleton.IsHost)
+            {
+                Debug.Log($"Client joined: {arg.m_ulSteamIDUserChanged}");
+                var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(JoinedLobbyId.Value);
+                var curPlayers = SteamMatchmaking.GetNumLobbyMembers(JoinedLobbyId.Value);
+                if (curPlayers >= maxPlayers)
+                {
+                    Debug.Log($"Client kicked because server is full: {arg.m_ulSteamIDUserChanged}");
+                    SteamNetworking.CloseP2PSessionWithUser(new(arg.m_ulSteamIDUserChanged));
+                }
+            }
+        }
+    }
+
     private void OnGameLobbyJoinRequested(GameLobbyJoinRequested_t arg)
     {
         Debug.Log("You accepted the invite.");
 
+        // Leave current lobby.
         if (JoinedLobbyId is { } id)
         {
             if (id.m_SteamID == arg.m_steamIDFriend.m_SteamID)
@@ -120,9 +145,17 @@ public class LobbyManager : MonoBehaviour
             LeaveLobby();
         }
 
+        // // Check server is full.
+        // var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(arg.m_steamIDLobby);
+        // var curPlayers = SteamMatchmaking.GetNumLobbyMembers(arg.m_steamIDLobby);
+        // if (curPlayers >= maxPlayers)
+        // {
+        //     return;
+        // }
+
+        // Join lobby.
         var transport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as SteamNetworkingSocketsTransport;
         transport.ConnectToSteamID = arg.m_steamIDFriend.m_SteamID;
-
         SetJoinedLobbyId(arg.m_steamIDLobby);
         _onJoinLobby.Set(SteamMatchmaking.JoinLobby(arg.m_steamIDLobby));
     }

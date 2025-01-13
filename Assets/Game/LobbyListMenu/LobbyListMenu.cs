@@ -22,7 +22,7 @@ public class LobbyListMenu : MonoBehaviour
     public int MaxPlayersValue
     {
         get => _maxPlayersValue;
-        set => _maxPlayersValue = Mathf.Clamp(value, 1, 10);
+        set => _maxPlayersValue = Mathf.Clamp(value, 0, 10);
     }
 
     private void Awake()
