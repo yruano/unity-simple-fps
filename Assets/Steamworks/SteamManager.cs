@@ -4,7 +4,7 @@ using Steamworks;
 public class SteamManager : MonoBehaviour
 {
     private static SteamManager s_instance = null;
-    private static SteamManager Instance => s_instance;
+    public static SteamManager Singleton => s_instance;
     public static bool IsInitialized { get; private set; } = false;
 
     private void Awake()

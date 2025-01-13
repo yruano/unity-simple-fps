@@ -1,7 +1,46 @@
 <engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
-    <Style src="project://database/Assets/Game/LobbyListMenu/LobbyListMenu.uss?fileID=7433441132597879392&amp;guid=ad2802ab9b5550b4a92ba9bf5aa47afb&amp;type=3#LobbyListMenu" />
-    <engine:VisualElement style="padding-top: 20px; padding-right: 20px; padding-bottom: 20px; padding-left: 20px;">
-        <engine:Button text="Host Game" name="HostGameButton" class="button" />
-        <engine:Button text="StartGame" name="StartGameButton" class="button" />
+    <Style src="project://database/Assets/Game/LobbyListMenu/LobbyListMenu.uss?fileID=7433441132597879392&amp;guid=33b6bbb7657bbba4cb2664958db46c3f&amp;type=3#LobbyListMenu" />
+    <engine:VisualElement style="padding-top: 20px; padding-right: 20px; padding-bottom: 20px; padding-left: 20px; flex-direction: row; flex-grow: 1;">
+        <engine:VisualElement style="flex-grow: 1; background-color: rgb(43, 43, 43); margin-right: 5px; max-width: 500px;">
+            <engine:ListView />
+        </engine:VisualElement>
+        <engine:VisualElement style="flex-grow: 1; margin-left: 5px; background-color: rgb(43, 43, 43);">
+            <engine:VisualElement>
+                <engine:TextField placeholder-text="Lobby name" style="margin-top: 4px;" />
+                <engine:TextField placeholder-text="Lobby password" />
+                <engine:VisualElement style="flex-grow: 0; flex-direction: row; align-items: center;">
+                    <engine:Label text="Max players:" style="color: rgb(255, 255, 255); margin-top: 2px; margin-right: 2px; margin-bottom: 2px; margin-left: 4px; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0;" />
+                    <engine:IntegerField value="10" max-length="2" name="MaxPlayersNum" style="margin-top: 2px; margin-right: 2px; margin-bottom: 2px; margin-left: 2px;" />
+                    <engine:Label text="Friend only:" style="color: rgb(255, 255, 255); margin-top: 2px; margin-right: 2px; margin-bottom: 2px; margin-left: 4px; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0;" />
+                    <engine:Toggle name="FriendOnleyToggle" style="margin-top: 2px; margin-right: 2px; margin-bottom: 2px; margin-left: 2px;" />
+                    <engine:Button text="Create lobby" name="LobbyButton1" style="margin-left: auto; margin-right: 2px; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px;" />
+                    <engine:Button text="Delete lobby" name="LobbyButton2" style="padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px; margin-top: 2px; margin-right: 4px; margin-bottom: 2px; margin-left: 2px;" />
+                </engine:VisualElement>
+            </engine:VisualElement>
+            <engine:VisualElement style="flex-grow: 1; flex-direction: row;">
+                <engine:VisualElement style="flex-grow: 1; max-width: 400px;">
+                    <engine:ListView />
+                </engine:VisualElement>
+                <engine:VisualElement style="flex-grow: 1;">
+                    <engine:VisualElement style="flex-grow: 0; flex-direction: row; flex-shrink: 1;">
+                        <engine:VisualElement style="flex-grow: 0; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px; width: 400px; height: 400px;">
+                            <engine:VisualElement style="flex-grow: 1;" />
+                        </engine:VisualElement>
+                        <engine:VisualElement style="flex-grow: 1;">
+                            <engine:ListView />
+                        </engine:VisualElement>
+                    </engine:VisualElement>
+                    <engine:VisualElement style="flex-grow: 1; flex-shrink: 0; flex-direction: row;">
+                        <engine:VisualElement style="flex-grow: 1;">
+                            <engine:ListView style="flex-grow: 1;" />
+                            <engine:TextField placeholder-text="Chat message..." style="margin-top: 2px; margin-right: 2px; margin-bottom: 4px; margin-left: 2px;" />
+                        </engine:VisualElement>
+                        <engine:VisualElement style="justify-content: flex-end;">
+                            <engine:Button text="Start match" name="StartMatchButton" style="margin-top: 2px; margin-right: 4px; margin-bottom: 4px; margin-left: 2px; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px;" />
+                        </engine:VisualElement>
+                    </engine:VisualElement>
+                </engine:VisualElement>
+            </engine:VisualElement>
+        </engine:VisualElement>
     </engine:VisualElement>
 </engine:UXML>

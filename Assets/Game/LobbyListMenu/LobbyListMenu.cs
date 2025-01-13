@@ -1,6 +1,6 @@
-using Netcode.Transports;
 using Steamworks;
 using Unity.Netcode;
+using Unity.Properties;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -9,53 +9,119 @@ public class LobbyListMenu : MonoBehaviour
 {
     private UIDocument _document;
     private VisualElement _root;
-    private Button _hostGameButton;
-    private Button _startGameButton;
-
-    private CSteamID? _joinedLobbyID; // move it to static field
+    private Button _lobbyButton1;
+    private Button _lobbyButton2;
+    private Button _startMatchButton;
+    private IntegerField _maxPlayersNum;
+    private Toggle _friendOnlyToggle;
 
     private CallResult<LobbyCreated_t> _onCreateLobby;
-    private CallResult<LobbyEnter_t> _onJoinLobby;
-    private Callback<GameLobbyJoinRequested_t> _onGameLobbyJoinRequested;
+
+    private int _maxPlayersValue = 10;
+    [CreateProperty]
+    public int MaxPlayersValue
+    {
+        get => _maxPlayersValue;
+        set => _maxPlayersValue = Mathf.Clamp(value, 1, 10);
+    }
 
     private void Awake()
     {
-        NetworkManager.Singleton.OnClientConnectedCallback += (ulong clientId) =>
-        {
-            Debug.Log("NetworkManager client connected.");
-        };
-
         _document = GetComponent<UIDocument>();
         _root = _document.rootVisualElement;
 
-        _hostGameButton = _root.Q("HostGameButton") as Button;
-        _startGameButton = _root.Q("StartGameButton") as Button;
-
-        _hostGameButton.RegisterCallback<ClickEvent>(OnClickHostGameButton);
-        _startGameButton.RegisterCallback<ClickEvent>(OnClickStartGameButton);
+        _lobbyButton1 = _root.Q("LobbyButton1") as Button;
+        _lobbyButton2 = _root.Q("LobbyButton2") as Button;
+        _startMatchButton = _root.Q("StartMatchButton") as Button;
+        _maxPlayersNum = _root.Q("MaxPlayersNum") as IntegerField;
+        _friendOnlyToggle = _root.Q("FriendOnlyToggle") as Toggle;
 
         _onCreateLobby = new(OnCreateLobby);
-        _onJoinLobby = new(OnJoinLobby);
-        _onGameLobbyJoinRequested = new(OnGameLobbyJoinRequested);
     }
 
-    private void OnClickHostGameButton(ClickEvent evt)
+    private void Start()
     {
-        Debug.Log("HostGameButton");
-        NetworkManager.Singleton.StartHost();
-        _onCreateLobby.Set(SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, 100));
+        NetworkManager.Singleton.OnClientStopped += OnClientStopped;
+
+        _maxPlayersNum.dataSource = this;
+        _maxPlayersNum.SetBinding("value", new DataBinding
+        {
+            dataSourcePath = PropertyPath.FromName(nameof(MaxPlayersValue))
+        });
+
+        SetLobbyButtonCallbacks(true);
     }
 
-    private void OnClickStartGameButton(ClickEvent evt)
+    public void OnDestroy()
     {
-        Debug.Log("StartGameButton");
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
+        }
+    }
+
+    private void OnClientStopped(bool isHost)
+    {
+        // TODO: 방 나갔음
+    }
+
+    private void SetLobbyButtonCallbacks(bool isCreateLobbyMode)
+    {
+        // Reset callbacks
+        _lobbyButton1.UnregisterCallback<ClickEvent>(OnClickCreateLobbyButton);
+        _lobbyButton2.UnregisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
+        // _lobbyButton1.UnregisterCallback<ClickEvent>(OnClickJoinLobbyButton);
+        // _lobbyButton2.UnregisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
+        _startMatchButton.UnregisterCallback<ClickEvent>(OnClickStartMatchButton);
+
+        if (isCreateLobbyMode)
+        {
+            _lobbyButton1.RegisterCallback<ClickEvent>(OnClickCreateLobbyButton);
+            _lobbyButton2.RegisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
+            _startMatchButton.RegisterCallback<ClickEvent>(OnClickStartMatchButton);
+        }
+        else
+        {
+            // _lobbyButton1.RegisterCallback<ClickEvent>(OnClickJoinLobbyButton);
+            // _lobbyButton2.RegisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
+        }
+    }
+
+    private void OnClickCreateLobbyButton(ClickEvent evt)
+    {
+        if (NetworkManager.Singleton.StartHost())
+        {
+            _maxPlayersNum.SetEnabled(false);
+            _friendOnlyToggle.SetEnabled(false);
+
+            var lobbyType = _friendOnlyToggle.value ? ELobbyType.k_ELobbyTypeFriendsOnly : ELobbyType.k_ELobbyTypePublic;
+            Debug.Log(MaxPlayersValue);
+            _onCreateLobby.Set(SteamMatchmaking.CreateLobby(lobbyType, MaxPlayersValue));
+        }
+        else
+        {
+            Debug.LogError("StartHost failed.");
+        }
+    }
+
+    private void OnClickDeleteLobbyButton(ClickEvent evt)
+    {
+        NetworkManager.Singleton.Shutdown();
+
+        _maxPlayersNum.SetEnabled(true);
+        _friendOnlyToggle.SetEnabled(true);
+    }
+
+    private void OnClickStartMatchButton(ClickEvent evt)
+    {
         if (NetworkManager.Singleton.IsHost)
         {
+            Debug.Log("StartMatchButton: Start.");
             NetworkManager.Singleton.SceneManager.LoadScene(Scenes.TestMap, LoadSceneMode.Single);
         }
         else
         {
-            Debug.Log("You are not the host.");
+            Debug.Log("StartMatchButton: You are not the host.");
         }
     }
 
@@ -70,34 +136,11 @@ public class LobbyListMenu : MonoBehaviour
         if (arg.m_eResult == EResult.k_EResultOK)
         {
             Debug.Log("Lobby created.");
-            _joinedLobbyID = new(arg.m_ulSteamIDLobby);
+            LobbyManager.Singleton.SetJoinedLobbyId(arg.m_ulSteamIDLobby);
         }
         else
         {
             Debug.Log("Failed to create a lobby.");
         }
-    }
-
-    private void OnJoinLobby(LobbyEnter_t arg, bool bIOFailure)
-    {
-        if (bIOFailure)
-        {
-            Debug.LogError("OnJoinLobby IOFailure.");
-            return;
-        }
-
-        Debug.Log("Lobby joined.");
-        _joinedLobbyID = new(arg.m_ulSteamIDLobby);
-        NetworkManager.Singleton.StartClient();
-    }
-
-    private void OnGameLobbyJoinRequested(GameLobbyJoinRequested_t arg)
-    {
-        Debug.Log("Invite accepted.");
-
-        var transport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as SteamNetworkingSocketsTransport;
-        transport.ConnectToSteamID = arg.m_steamIDFriend.m_SteamID;
-
-        _onJoinLobby.Set(SteamMatchmaking.JoinLobby(arg.m_steamIDLobby));
     }
 }

@@ -1,3 +1,6 @@
 .button {
     font-size: 30px;
 }
+
+.unity-toggle__label {
+}
