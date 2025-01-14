@@ -139,6 +139,7 @@ public class Player : NetworkBehaviour
 
     private void OnInputShoot(InputAction.CallbackContext ctx)
     {
+        Debug.Log("Shoot");
         AttemptShootRpc(_cmFirstPersonCamera.transform.forward);
     }
 
