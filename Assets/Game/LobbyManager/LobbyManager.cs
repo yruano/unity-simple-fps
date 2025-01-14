@@ -42,13 +42,10 @@ public class LobbyManager : MonoBehaviour
         NetworkManager.Singleton.OnClientStopped += (bool isHost) =>
         {
             Debug.Log($"OnClientStopped");
-
             if (NetworkManager.Singleton.IsClient)
             {
-                NetworkManager.Singleton.Shutdown();
+                LeaveLobby();
             }
-            // Client has already left the Steam Lobby at this point.
-            ClearJoinedLobbyId();
         };
 
         NetworkManager.Singleton.OnConnectionEvent += (NetworkManager _, ConnectionEventData data) =>

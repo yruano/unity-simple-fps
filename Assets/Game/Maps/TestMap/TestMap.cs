@@ -2,27 +2,18 @@ using UnityEngine;
 using Unity.Netcode;
 using UnityEngine.SceneManagement;
 
-public class TestMap : NetworkBehaviour
+public class TestMap : MapBase
 {
     [SerializeField]
     private GameObject PlayerPrefab;
 
-    private void Start()
+    protected override void Start()
     {
-        NetworkManager.Singleton.OnClientStopped += OnClientStopped;
-
+        base.Start();
         SpawnPlayerRpc();
     }
 
-    public override void OnDestroy()
-    {
-        if (NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
-        }
-    }
-
-    private void OnClientStopped(bool isHost)
+    protected override void OnClientStopped(bool isHost)
     {
         SceneManager.LoadScene(Scenes.LobbyListMenu);
     }

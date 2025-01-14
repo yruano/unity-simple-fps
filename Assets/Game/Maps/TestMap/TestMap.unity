@@ -175,6 +175,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  PrefabInGameEscapeMenu: {fileID: 61761606419647581, guid: 56ef8517bd4e49545b11bf47ae36d7f5, type: 3}
   PlayerPrefab: {fileID: 5353466884580838120, guid: 3f0c090dd6dbeef449d93ee806552db7, type: 3}
 --- !u!4 &103681111
 Transform:

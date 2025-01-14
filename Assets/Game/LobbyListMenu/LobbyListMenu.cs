@@ -240,6 +240,11 @@ public class LobbyListMenu : MonoBehaviour
             _maxPlayersIntField.SetEnabled(false);
             _friendOnlyToggle.SetEnabled(false);
 
+            if (string.IsNullOrEmpty(_lobbyNameTextField.value))
+            {
+                _lobbyNameTextField.value = $"Lobby created by \"{SteamFriends.GetPersonaName()}\"";
+            }
+
             var lobbyType = _friendOnlyToggle.value ? ELobbyType.k_ELobbyTypeFriendsOnly : ELobbyType.k_ELobbyTypePublic;
             _onCreateLobby.Set(SteamMatchmaking.CreateLobby(lobbyType, MyMaxPlayersValue));
         }
