@@ -1,0 +1,12 @@
+.healthBar {
+}
+
+.healthBar .unity-progress-bar__container {
+    max-height: none;
+    min-height: auto;
+    height: 40px;
+}
+
+.healthBar .unity-progress-bar__progress {
+    background-color: rgb(255, 0, 0);
+}

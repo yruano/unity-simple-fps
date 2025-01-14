@@ -5,19 +5,24 @@ using Unity.Netcode;
 public class MapBase : NetworkBehaviour
 {
     [SerializeField] protected GameObject PrefabInGameEscapeMenu;
+    [SerializeField] protected GameObject PrefabInGameHud;
+
+    protected InGameEscapeMenu _inGameEscapeMenu;
+    protected InGameHud _inGameHud;
 
     protected InputAction _inputEscape;
-    protected InGameEscapeMenu _inGameEscapeMenu;
 
     protected virtual void Start()
     {
+        _inGameEscapeMenu = Instantiate(PrefabInGameEscapeMenu).GetComponent<InGameEscapeMenu>();
+        _inGameEscapeMenu.SetDocumentVisible(false);
+
+        _inGameHud = Instantiate(PrefabInGameHud).GetComponent<InGameHud>();
+
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
 
         _inputEscape = InputSystem.actions.FindAction("InGame/Escape");
         _inputEscape.performed += OnInputEscape;
-
-        _inGameEscapeMenu = Instantiate(PrefabInGameEscapeMenu).GetComponent<InGameEscapeMenu>();
-        _inGameEscapeMenu.SetDocumentVisible(false);
     }
 
     public override void OnDestroy()
