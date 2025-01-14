@@ -119,6 +119,7 @@ public class LobbyManager : MonoBehaviour
         // Join lobby.
         var transport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as SteamNetworkingSocketsTransport;
         transport.ConnectToSteamID = lobbyOwnerId.m_SteamID;
+
         SetJoinedLobbyId(lobbyId);
         _onJoinLobby.Set(SteamMatchmaking.JoinLobby(lobbyId));
     }
