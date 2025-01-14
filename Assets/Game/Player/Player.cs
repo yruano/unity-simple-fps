@@ -1,8 +1,8 @@
-using Unity.Netcode;
-using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Properties;
+using Unity.Cinemachine;
+using Unity.Netcode;
 
 public class Player : NetworkBehaviour
 {
@@ -25,6 +25,7 @@ public class Player : NetworkBehaviour
         get => _healthMax.Value;
         set => _healthMax.Value = Mathf.Max(value, 0);
     }
+
     private NetworkVariable<int> _health = new();
     [CreateProperty]
     public int Health
@@ -58,8 +59,6 @@ public class Player : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        base.OnNetworkSpawn();
-
         if (IsHost)
         {
             Init();
@@ -68,11 +67,24 @@ public class Player : NetworkBehaviour
         if (IsOwner)
         {
             _cmFirstPersonCamera.Priority = 1;
+
             _inputShoot.performed += OnInputShoot;
 
             var inGameHud = FindFirstObjectByType<InGameHud>();
             inGameHud.InitPlayer(this);
         }
+
+        base.OnNetworkSpawn();
+    }
+
+    public override void OnDestroy()
+    {
+        if (IsOwner)
+        {
+            _inputShoot.performed -= OnInputShoot;
+        }
+
+        base.OnDestroy();
     }
 
     private void Update()
@@ -130,13 +142,19 @@ public class Player : NetworkBehaviour
         AttemptShootRpc(_cmFirstPersonCamera.transform.forward);
     }
 
-    private void CheckDeath()
+    public void CheckDeath()
     {
         if (Health == 0)
         {
-            Destroy(_cameraTarget);
+            OnDeathRpc();
             GetComponent<NetworkObject>().Despawn();
         }
+    }
+
+    [Rpc(SendTo.Owner)]
+    private void OnDeathRpc()
+    {
+        Destroy(_cameraTarget);
     }
 
     [Rpc(SendTo.Server)]
@@ -146,13 +164,16 @@ public class Player : NetworkBehaviour
         {
             var rayStartPos = _cmFirstPersonCamera.transform.position;
             var rayDir = shootDir;
+
+            Debug.DrawRay(rayStartPos, rayDir * 100, Color.red, 2);
+
             if (Physics.Raycast(rayStartPos, rayDir, out var rayHitInfo, 100))
             {
                 if (rayHitInfo.collider != this && rayHitInfo.collider.CompareTag("Player"))
                 {
                     var player = rayHitInfo.collider.GetComponent<Player>();
                     player.Health -= 20;
-                    CheckDeath();
+                    player.CheckDeath();
                 }
             }
         }
