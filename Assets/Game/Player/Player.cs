@@ -43,14 +43,6 @@ public class Player : NetworkBehaviour
 
     private void Awake()
     {
-        _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
-        _cameraTarget.Target = transform;
-        _cameraTarget.Offset = Vector3.up * 0.5f;
-        _cameraTarget.MoveToTarget();
-
-        _cmFirstPersonCamera = Instantiate(PrefabCmFirstPersonCamera);
-        _cmFirstPersonCamera.Target.TrackingTarget = _cameraTarget.transform;
-
         _rb = GetComponent<Rigidbody>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
@@ -66,6 +58,13 @@ public class Player : NetworkBehaviour
 
         if (IsOwner)
         {
+            _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
+            _cameraTarget.Target = transform;
+            _cameraTarget.Offset = Vector3.up * 0.5f;
+            _cameraTarget.MoveToTarget();
+
+            _cmFirstPersonCamera = Instantiate(PrefabCmFirstPersonCamera);
+            _cmFirstPersonCamera.Target.TrackingTarget = _cameraTarget.transform;
             _cmFirstPersonCamera.Priority = 1;
 
             _inputShoot.performed += OnInputShoot;
