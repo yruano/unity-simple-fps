@@ -97,6 +97,32 @@ public class LobbyManager : MonoBehaviour
         }
     }
 
+    public void JoinLobby(CSteamID lobbyId, CSteamID lobbyOwnerId)
+    {
+        // Leave current lobby.
+        if (JoinedLobbyId is { } id)
+        {
+            if (id.m_SteamID == lobbyId.m_SteamID)
+                return;
+
+            LeaveLobby();
+        }
+
+        // Check server is full.
+        var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
+        var curPlayers = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+        if (curPlayers >= maxPlayers)
+        {
+            return;
+        }
+
+        // Join lobby.
+        var transport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as SteamNetworkingSocketsTransport;
+        transport.ConnectToSteamID = lobbyOwnerId.m_SteamID;
+        SetJoinedLobbyId(lobbyId);
+        _onJoinLobby.Set(SteamMatchmaking.JoinLobby(lobbyId));
+    }
+
     private void OnJoinLobby(LobbyEnter_t arg, bool bIOFailure)
     {
         if (bIOFailure)
@@ -133,28 +159,6 @@ public class LobbyManager : MonoBehaviour
     private void OnGameLobbyJoinRequested(GameLobbyJoinRequested_t arg)
     {
         Debug.Log("You accepted the invite.");
-
-        // Leave current lobby.
-        if (JoinedLobbyId is { } id)
-        {
-            if (id.m_SteamID == arg.m_steamIDFriend.m_SteamID)
-                return;
-
-            LeaveLobby();
-        }
-
-        // Check server is full.
-        var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(arg.m_steamIDLobby);
-        var curPlayers = SteamMatchmaking.GetNumLobbyMembers(arg.m_steamIDLobby);
-        if (curPlayers >= maxPlayers)
-        {
-            return;
-        }
-
-        // Join lobby.
-        var transport = NetworkManager.Singleton.NetworkConfig.NetworkTransport as SteamNetworkingSocketsTransport;
-        transport.ConnectToSteamID = arg.m_steamIDFriend.m_SteamID;
-        SetJoinedLobbyId(arg.m_steamIDLobby);
-        _onJoinLobby.Set(SteamMatchmaking.JoinLobby(arg.m_steamIDLobby));
+        JoinLobby(arg.m_steamIDLobby, arg.m_steamIDFriend);
     }
 }
