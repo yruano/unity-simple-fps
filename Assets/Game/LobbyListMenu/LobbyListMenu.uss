@@ -1,6 +1,5 @@
-.button {
-    font-size: 30px;
-}
-
-.unity-toggle__label {
+.chatHistoryListView .unity-scroll-view__content-container {
+    justify-content: flex-end;
+    align-content: flex-end;
+    flex-grow: 1;
 }

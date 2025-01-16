@@ -1,0 +1,6 @@
+<engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <engine:VisualElement name="VisualElement" style="flex-direction: column; background-color: rgb(130, 130, 130); color: rgb(255, 255, 255);">
+        <engine:Label text="Name&#10;" name="NameLabel" style="margin-top: 4px; margin-right: 4px; margin-bottom: 0; margin-left: 4px; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0; font-size: 20px; -unity-font-style: bold;" />
+        <engine:Label text="Message" name="MessageLabel" style="margin-top: 0; margin-right: 4px; margin-bottom: 4px; margin-left: 4px; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0; white-space: normal;" />
+    </engine:VisualElement>
+</engine:UXML>

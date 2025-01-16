@@ -322,6 +322,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   LobbyListEntryAsset: {fileID: 9197481963319205126, guid: 0796887e3f34faf43815c1144428e43d, type: 3}
   LobbyMemberListEntryAsset: {fileID: 9197481963319205126, guid: c5f09b6f3b118004f9974cda227ba543, type: 3}
+  LobbyChatHistoryListEntryAsset: {fileID: 9197481963319205126, guid: 92c13006b37f6984faf061b6ab9c36b6, type: 3}
+  PrefabLobbyChatManager: {fileID: 6464614703298488204, guid: 54aac116500dea240b19faa791a90d28, type: 3}
+  LobbyChatManager: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

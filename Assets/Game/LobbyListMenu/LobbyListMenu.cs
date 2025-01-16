@@ -5,7 +5,6 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 using Unity.Properties;
 using Unity.Netcode;
-using UnityEngine.InputSystem.Utilities;
 
 public struct LobbyListEntryData
 {
@@ -68,11 +67,38 @@ public class LobbyMemberListEntryController
     }
 }
 
+public struct LobbyChatHistroyListEntryData
+{
+    public string Name;
+    public string Message;
+}
+
+public class LobbyChatHistoryListEntryController
+{
+    private Label _nameLabel;
+    private Label _messageLabel;
+
+    public LobbyChatHistoryListEntryController(VisualElement root)
+    {
+        _nameLabel = root.Q("NameLabel") as Label;
+        _messageLabel = root.Q("MessageLabel") as Label;
+    }
+
+    public void UpdateElements(LobbyChatHistroyListEntryData data)
+    {
+        _nameLabel.text = data.Name;
+        _messageLabel.text = data.Message;
+    }
+}
+
 public class LobbyListMenu : MonoBehaviour
 {
     [SerializeField] private VisualTreeAsset LobbyListEntryAsset;
     [SerializeField] private VisualTreeAsset LobbyMemberListEntryAsset;
+    [SerializeField] private VisualTreeAsset LobbyChatHistoryListEntryAsset;
+    [SerializeField] private GameObject PrefabLobbyChatManager;
 
+    // UI Elements
     private UIDocument _document;
     private VisualElement _root;
     private Button _refreshButton;
@@ -83,15 +109,18 @@ public class LobbyListMenu : MonoBehaviour
     private Button _lobbyButton1;
     private Button _lobbyButton2;
     private ListView _lobbyMemberListView;
+    private ListView _lobbyChatHistoryListView;
+    private TextField _lobbyChatTextField;
     private Button _startMatchButton;
 
-    private CallResult<LobbyMatchList_t> _onRequestLobbyList;
-    private CallResult<LobbyCreated_t> _onCreateLobby;
-
-    private List<LobbyListEntryData> _lobbyEntries = new();
-    private List<LobbyMemberListEntryData> _lobbyMemberEntries = new();
+    // ListEntries
+    private List<LobbyListEntryData> _lobbyListEntries = new();
+    private List<LobbyMemberListEntryData> _lobbyMemberListEntries = new();
+    private List<LobbyChatHistroyListEntryData> _lobbyChatHistoryListEntries = new();
 
     public LobbyListEntryData? JoiningLobbyData;
+
+    [HideInInspector] public LobbyChatManager LobbyChatManager;
 
     private int _myMaxPlayersValue = 10;
     [CreateProperty]
@@ -109,6 +138,9 @@ public class LobbyListMenu : MonoBehaviour
         set => _myLobbyNameValue = value.Trim();
     }
 
+    // Steamworks
+    private CallResult<LobbyMatchList_t> _onRequestLobbyList;
+    private CallResult<LobbyCreated_t> _onCreateLobby;
     private Callback<LobbyChatUpdate_t> _onClientLobbyEvent;
 
     private void Awake()
@@ -124,6 +156,8 @@ public class LobbyListMenu : MonoBehaviour
         _lobbyButton1 = _root.Q("LobbyButton1") as Button;
         _lobbyButton2 = _root.Q("LobbyButton2") as Button;
         _lobbyMemberListView = _root.Q("LobbyMemberListView") as ListView;
+        _lobbyChatHistoryListView = _root.Q("LobbyChatHistoryListView") as ListView;
+        _lobbyChatTextField = _root.Q("LobbyChatTextField") as TextField;
         _startMatchButton = _root.Q("StartMatchButton") as Button;
 
         _onRequestLobbyList = new(OnRequestLobbyList);
@@ -141,7 +175,7 @@ public class LobbyListMenu : MonoBehaviour
         _refreshButton.RegisterCallback<ClickEvent>((evt) => RefreshLobbyList());
 
         // Setup LobbyListView.
-        _lobbyListView.itemsSource = _lobbyEntries;
+        _lobbyListView.itemsSource = _lobbyListEntries;
         _lobbyListView.makeItem = () =>
         {
             var item = LobbyListEntryAsset.Instantiate();
@@ -150,7 +184,7 @@ public class LobbyListMenu : MonoBehaviour
         };
         _lobbyListView.bindItem = (item, index) =>
         {
-            (item.userData as LobbyListEntryController)?.UpdateElements(_lobbyEntries[index]);
+            (item.userData as LobbyListEntryController)?.UpdateElements(_lobbyListEntries[index]);
         };
 
         // Setup LobbyName.
@@ -165,8 +199,8 @@ public class LobbyListMenu : MonoBehaviour
         _lobbyButton1.RegisterCallback<ClickEvent>(OnClickCreateLobbyButton);
         _lobbyButton2.RegisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
 
-        // Setup LobbyMemberListView
-        _lobbyMemberListView.itemsSource = _lobbyMemberEntries;
+        // Setup LobbyMemberListView.
+        _lobbyMemberListView.itemsSource = _lobbyMemberListEntries;
         _lobbyMemberListView.makeItem = () =>
         {
             var item = LobbyMemberListEntryAsset.Instantiate();
@@ -175,8 +209,34 @@ public class LobbyListMenu : MonoBehaviour
         };
         _lobbyMemberListView.bindItem = (item, index) =>
         {
-            (item.userData as LobbyMemberListEntryController)?.UpdateElements(_lobbyMemberEntries[index]);
+            (item.userData as LobbyMemberListEntryController)?.UpdateElements(_lobbyMemberListEntries[index]);
         };
+
+        // Setup LobbyChatHistortListView.
+        _lobbyChatHistoryListView.itemsSource = _lobbyChatHistoryListEntries;
+        _lobbyChatHistoryListView.makeItem = () =>
+        {
+            var item = LobbyChatHistoryListEntryAsset.Instantiate();
+            item.userData = new LobbyChatHistoryListEntryController(item);
+            return item;
+        };
+        _lobbyChatHistoryListView.bindItem = (item, index) =>
+        {
+            (item.userData as LobbyChatHistoryListEntryController)?.UpdateElements(_lobbyChatHistoryListEntries[index]);
+        };
+
+        // Setup LobbyChatTextField.
+        _lobbyChatTextField.RegisterCallback<ChangeEvent<string>>((evt) =>
+        {
+            if (string.IsNullOrEmpty(evt.newValue))
+                return;
+
+            // TODO: store name in a singleton
+            var name = SteamFriends.GetPersonaName();
+            var message = evt.newValue;
+            LobbyChatManager?.SendMessage(name, message);
+            _lobbyChatTextField.value = "";
+        });
 
         // Request lobby list.
         InvokeRepeating(nameof(RefreshLobbyList), 0, 5);
@@ -194,6 +254,13 @@ public class LobbyListMenu : MonoBehaviour
         }
     }
 
+    public void AddChatMessage(string Name, string Message)
+    {
+        _lobbyChatHistoryListEntries.Add(new LobbyChatHistroyListEntryData { Name = Name, Message = Message });
+        _lobbyChatHistoryListView.RefreshItems();
+        _lobbyChatHistoryListView.ScrollToItem(_lobbyChatHistoryListEntries.Count - 1);
+    }
+
     private void OnClientStarted()
     {
         if (!NetworkManager.Singleton.IsHost && LobbyManager.Singleton.JoinedLobbyId is { } lobbyId)
@@ -209,8 +276,10 @@ public class LobbyListMenu : MonoBehaviour
     {
         _lobbyNameTextField.value = "";
         _maxPlayersIntField.value = 10;
-        _lobbyMemberEntries.Clear();
+        _lobbyMemberListEntries.Clear();
         _lobbyMemberListView.RefreshItems();
+        _lobbyChatHistoryListEntries.Clear();
+        _lobbyChatHistoryListView.RefreshItems();
         UpdateLobbyElements(true);
     }
 
@@ -267,14 +336,14 @@ public class LobbyListMenu : MonoBehaviour
 
     private void RefreshLobbyList()
     {
-        _lobbyEntries.Clear();
+        _lobbyListEntries.Clear();
         _lobbyListView.ClearSelection();
         _onRequestLobbyList.Set(SteamMatchmaking.RequestLobbyList());
     }
 
     private void RefreshLobbyMemberList()
     {
-        _lobbyMemberEntries.Clear();
+        _lobbyMemberListEntries.Clear();
         _lobbyMemberListView.ClearSelection();
 
         if (LobbyManager.Singleton.JoinedLobbyId is { } lobbyId)
@@ -285,7 +354,7 @@ public class LobbyListMenu : MonoBehaviour
                 var memberId = SteamMatchmaking.GetLobbyMemberByIndex(lobbyId, i);
                 var memberName = SteamFriends.GetFriendPersonaName(memberId);
                 var memberRole = (i == 0) ? "Host" : "Client";
-                _lobbyMemberEntries.Add(new LobbyMemberListEntryData { Name = memberName, Role = memberRole });
+                _lobbyMemberListEntries.Add(new LobbyMemberListEntryData { Name = memberName, Role = memberRole });
             }
             _lobbyMemberListView.RefreshItems();
         }
@@ -390,7 +459,7 @@ public class LobbyListMenu : MonoBehaviour
 
             if (!string.IsNullOrEmpty(lobbyName))
             {
-                _lobbyEntries.Add(new LobbyListEntryData
+                _lobbyListEntries.Add(new LobbyListEntryData
                 {
                     LobbyId = lobbyId,
                     LobbyOwnerId = lobbyOwnerId,
@@ -423,6 +492,10 @@ public class LobbyListMenu : MonoBehaviour
         SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerId", SteamUser.GetSteamID().m_SteamID.ToString());
         SteamMatchmaking.SetLobbyData(lobbyId, "LobbyName", MyLobbyNameValue);
         SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerName", SteamFriends.GetPersonaName());
+
+        var lobbyChatManager = Instantiate(PrefabLobbyChatManager);
+        var networkLobbyChatManager = lobbyChatManager.GetComponent<NetworkObject>();
+        networkLobbyChatManager.Spawn(true);
 
         RefreshLobbyMemberList();
     }
