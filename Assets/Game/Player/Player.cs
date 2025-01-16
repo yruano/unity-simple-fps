@@ -56,15 +56,15 @@ public class Player : NetworkBehaviour
             Init();
         }
 
+        _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
+        _cameraTarget.Target = transform;
+        _cameraTarget.Offset = Vector3.up * 0.5f;
+        _cameraTarget.MoveToTarget();
+
         if (IsOwner)
         {
-            _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
-            _cameraTarget.Target = transform;
-            _cameraTarget.Offset = Vector3.up * 0.5f;
-            _cameraTarget.MoveToTarget();
-
             _cmFirstPersonCamera = Instantiate(PrefabCmFirstPersonCamera);
-            _cmFirstPersonCamera.Target.TrackingTarget = _cameraTarget.transform;
+            _cmFirstPersonCamera.Follow = _cameraTarget.transform;
             _cmFirstPersonCamera.Priority = 1;
 
             _inputShoot.performed += OnInputShoot;
@@ -138,8 +138,12 @@ public class Player : NetworkBehaviour
 
     private void OnInputShoot(InputAction.CallbackContext ctx)
     {
-        Debug.Log("Shoot");
         AttemptShootRpc(_cmFirstPersonCamera.transform.forward);
+    }
+
+    public void Init()
+    {
+        Health = HealthMax;
     }
 
     public void CheckDeath()
@@ -160,27 +164,26 @@ public class Player : NetworkBehaviour
     [Rpc(SendTo.Server)]
     private void AttemptShootRpc(Vector3 shootDir)
     {
-        if (BulletCount > 0)
+        if (BulletCount == 0)
         {
-            var rayStartPos = _cmFirstPersonCamera.transform.position;
-            var rayDir = shootDir;
+            return;
+        }
 
-            Debug.DrawRay(rayStartPos, rayDir * 100, Color.red, 2);
+        var rayPos = _cameraTarget.transform.position;
+        var rayDir = shootDir;
+        var rayDist = 100f;
 
-            if (Physics.Raycast(rayStartPos, rayDir, out var rayHitInfo, 100))
+        Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
+
+        if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
+        {
+            var collider = rayHitInfo.collider;
+            if (collider != this && collider.CompareTag("Player"))
             {
-                if (rayHitInfo.collider != this && rayHitInfo.collider.CompareTag("Player"))
-                {
-                    var player = rayHitInfo.collider.GetComponent<Player>();
-                    player.Health -= 20;
-                    player.CheckDeath();
-                }
+                var player = collider.GetComponent<Player>();
+                player.Health -= 20;
+                player.CheckDeath();
             }
         }
-    }
-
-    public void Init()
-    {
-        Health = HealthMax;
     }
 }

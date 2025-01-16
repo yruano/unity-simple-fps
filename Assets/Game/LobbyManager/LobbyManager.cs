@@ -1,12 +1,11 @@
+using Steamworks;
 using UnityEngine;
 using Unity.Netcode;
 using Netcode.Transports;
-using Steamworks;
 
 public class LobbyManager : MonoBehaviour
 {
-    private static LobbyManager s_instance = null;
-    public static LobbyManager Singleton => s_instance;
+    public static LobbyManager Singleton { get; private set; }
 
     public CSteamID? JoinedLobbyId { get; private set; }
 
@@ -16,12 +15,12 @@ public class LobbyManager : MonoBehaviour
 
     private void Awake()
     {
-        if (s_instance != null)
+        if (Singleton != null)
         {
             Destroy(gameObject);
             return;
         }
-        s_instance = this;
+        Singleton = this;
         DontDestroyOnLoad(gameObject);
     }
 
@@ -61,11 +60,11 @@ public class LobbyManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (s_instance != this)
+        if (Singleton != this)
         {
             return;
         }
-        s_instance = null;
+        Singleton = null;
     }
 
     public void SetJoinedLobbyId(ulong lobbyId)

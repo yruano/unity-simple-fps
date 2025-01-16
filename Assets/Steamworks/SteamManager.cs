@@ -1,21 +1,20 @@
-using UnityEngine;
 using Steamworks;
+using UnityEngine;
 
 public class SteamManager : MonoBehaviour
 {
-    private static SteamManager s_instance = null;
-    public static SteamManager Singleton => s_instance;
-
+    public static SteamManager Singleton { get; private set; }
+    public static readonly AppId_t AppId = new(480); // https://steamdb.info/app/480/info/
     public static bool IsInitialized { get; private set; } = false;
 
     private void Awake()
     {
-        if (s_instance != null)
+        if (Singleton != null)
         {
             Destroy(gameObject);
             return;
         }
-        s_instance = this;
+        Singleton = this;
         DontDestroyOnLoad(gameObject);
 
         InitSteamworks();
@@ -23,11 +22,11 @@ public class SteamManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (s_instance != this)
+        if (Singleton != this)
         {
             return;
         }
-        s_instance = null;
+        Singleton = null;
 
         if (IsInitialized)
         {
@@ -58,7 +57,7 @@ public class SteamManager : MonoBehaviour
 
         try
         {
-            if (SteamAPI.RestartAppIfNecessary((AppId_t)480))
+            if (SteamAPI.RestartAppIfNecessary(AppId))
             {
                 Application.Quit();
                 return;

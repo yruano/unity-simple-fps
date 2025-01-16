@@ -1,7 +1,7 @@
-using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
+using Unity.Netcode;
 
 public class MainMenu : MonoBehaviour
 {

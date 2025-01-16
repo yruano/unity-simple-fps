@@ -19,7 +19,7 @@
             </engine:VisualElement>
             <engine:VisualElement style="flex-grow: 1; flex-direction: row;">
                 <engine:VisualElement style="flex-grow: 1; max-width: 400px;">
-                    <engine:ListView />
+                    <engine:ListView name="LobbyMemberListView" virtualization-method="DynamicHeight" />
                 </engine:VisualElement>
                 <engine:VisualElement style="flex-grow: 1;">
                     <engine:VisualElement style="flex-grow: 0; flex-direction: row; flex-shrink: 1;">

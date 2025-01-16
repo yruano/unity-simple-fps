@@ -1,11 +1,11 @@
-using System;
 using System.Collections.Generic;
 using Steamworks;
-using Unity.Netcode;
-using Unity.Properties;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
+using Unity.Properties;
+using Unity.Netcode;
+using UnityEngine.InputSystem.Utilities;
 
 public struct LobbyListEntryData
 {
@@ -44,25 +44,53 @@ public class LobbyListEntryController
     }
 }
 
+public struct LobbyMemberListEntryData
+{
+    public string Name;
+    public string Role;
+}
+
+public class LobbyMemberListEntryController
+{
+    private readonly Label _nameLabel;
+    private readonly Label _roleLabel;
+
+    public LobbyMemberListEntryController(VisualElement root)
+    {
+        _nameLabel = root.Q("NameLabel") as Label;
+        _roleLabel = root.Q("RoleLabel") as Label;
+    }
+
+    public void UpdateElements(LobbyMemberListEntryData data)
+    {
+        _nameLabel.text = data.Name;
+        _roleLabel.text = data.Role;
+    }
+}
+
 public class LobbyListMenu : MonoBehaviour
 {
     [SerializeField] private VisualTreeAsset LobbyListEntryAsset;
+    [SerializeField] private VisualTreeAsset LobbyMemberListEntryAsset;
 
     private UIDocument _document;
     private VisualElement _root;
     private Button _refreshButton;
     private ListView _lobbyListView;
     private TextField _lobbyNameTextField;
-    private Button _lobbyButton1;
-    private Button _lobbyButton2;
-    private Button _startMatchButton;
     private IntegerField _maxPlayersIntField;
     private Toggle _friendOnlyToggle;
+    private Button _lobbyButton1;
+    private Button _lobbyButton2;
+    private ListView _lobbyMemberListView;
+    private Button _startMatchButton;
 
     private CallResult<LobbyMatchList_t> _onRequestLobbyList;
     private CallResult<LobbyCreated_t> _onCreateLobby;
 
     private List<LobbyListEntryData> _lobbyEntries = new();
+    private List<LobbyMemberListEntryData> _lobbyMemberEntries = new();
+
     public LobbyListEntryData? JoiningLobbyData;
 
     private int _myMaxPlayersValue = 10;
@@ -81,6 +109,8 @@ public class LobbyListMenu : MonoBehaviour
         set => _myLobbyNameValue = value.Trim();
     }
 
+    private Callback<LobbyChatUpdate_t> _onClientLobbyEvent;
+
     private void Awake()
     {
         _document = GetComponent<UIDocument>();
@@ -89,11 +119,12 @@ public class LobbyListMenu : MonoBehaviour
         _refreshButton = _root.Q("RefreshButton") as Button;
         _lobbyListView = _root.Q("LobbyListView") as ListView;
         _lobbyNameTextField = _root.Q("LobbyNameTextField") as TextField;
-        _lobbyButton1 = _root.Q("LobbyButton1") as Button;
-        _lobbyButton2 = _root.Q("LobbyButton2") as Button;
-        _startMatchButton = _root.Q("StartMatchButton") as Button;
         _maxPlayersIntField = _root.Q("MaxPlayersNum") as IntegerField;
         _friendOnlyToggle = _root.Q("FriendOnlyToggle") as Toggle;
+        _lobbyButton1 = _root.Q("LobbyButton1") as Button;
+        _lobbyButton2 = _root.Q("LobbyButton2") as Button;
+        _lobbyMemberListView = _root.Q("LobbyMemberListView") as ListView;
+        _startMatchButton = _root.Q("StartMatchButton") as Button;
 
         _onRequestLobbyList = new(OnRequestLobbyList);
         _onCreateLobby = new(OnCreateLobby);
@@ -103,6 +134,8 @@ public class LobbyListMenu : MonoBehaviour
     {
         NetworkManager.Singleton.OnClientStarted += OnClientStarted;
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
+
+        _onClientLobbyEvent = new(OnClientLobbyEvent);
 
         // Setup RefreshButton.
         _refreshButton.RegisterCallback<ClickEvent>((evt) => RefreshLobbyList());
@@ -132,6 +165,19 @@ public class LobbyListMenu : MonoBehaviour
         _lobbyButton1.RegisterCallback<ClickEvent>(OnClickCreateLobbyButton);
         _lobbyButton2.RegisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
 
+        // Setup LobbyMemberListView
+        _lobbyMemberListView.itemsSource = _lobbyMemberEntries;
+        _lobbyMemberListView.makeItem = () =>
+        {
+            var item = LobbyMemberListEntryAsset.Instantiate();
+            item.userData = new LobbyMemberListEntryController(item);
+            return item;
+        };
+        _lobbyMemberListView.bindItem = (item, index) =>
+        {
+            (item.userData as LobbyMemberListEntryController)?.UpdateElements(_lobbyMemberEntries[index]);
+        };
+
         // Request lobby list.
         InvokeRepeating(nameof(RefreshLobbyList), 0, 5);
 
@@ -152,8 +198,10 @@ public class LobbyListMenu : MonoBehaviour
     {
         if (!NetworkManager.Singleton.IsHost && LobbyManager.Singleton.JoinedLobbyId is { } lobbyId)
         {
-            _lobbyNameTextField.value = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyName"); // TODO: store lobby name data in the LobbyManager
+            // TODO: store lobby name data in the LobbyManager
+            _lobbyNameTextField.value = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyName");
             _maxPlayersIntField.value = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
+            RefreshLobbyMemberList();
         }
     }
 
@@ -161,7 +209,27 @@ public class LobbyListMenu : MonoBehaviour
     {
         _lobbyNameTextField.value = "";
         _maxPlayersIntField.value = 10;
+        _lobbyMemberEntries.Clear();
+        _lobbyMemberListView.RefreshItems();
         UpdateLobbyElements(true);
+    }
+
+    private void OnClientLobbyEvent(LobbyChatUpdate_t arg)
+    {
+        // Lobby entered.
+        if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
+        {
+            RefreshLobbyMemberList();
+        }
+
+        // Lobby lefted.
+        var leftedFlag =
+            (uint)EChatMemberStateChange.k_EChatMemberStateChangeLeft |
+            (uint)EChatMemberStateChange.k_EChatMemberStateChangeDisconnected;
+        if ((arg.m_rgfChatMemberStateChange & leftedFlag) != 0)
+        {
+            RefreshLobbyMemberList();
+        }
     }
 
     private void UpdateLobbyElements(bool isCreateLobbyMode)
@@ -204,8 +272,31 @@ public class LobbyListMenu : MonoBehaviour
         _onRequestLobbyList.Set(SteamMatchmaking.RequestLobbyList());
     }
 
+    private void RefreshLobbyMemberList()
+    {
+        _lobbyMemberEntries.Clear();
+        _lobbyMemberListView.ClearSelection();
+
+        if (LobbyManager.Singleton.JoinedLobbyId is { } lobbyId)
+        {
+            var memberCount = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+            for (var i = 0; i < memberCount; ++i)
+            {
+                var memberId = SteamMatchmaking.GetLobbyMemberByIndex(lobbyId, i);
+                var memberName = SteamFriends.GetFriendPersonaName(memberId);
+                var memberRole = (i == 0) ? "Host" : "Client";
+                _lobbyMemberEntries.Add(new LobbyMemberListEntryData { Name = memberName, Role = memberRole });
+            }
+            _lobbyMemberListView.RefreshItems();
+        }
+    }
+
     private void OnClickJoinLobbyButton(ClickEvent evt)
     {
+        // FIXME:
+        // 로비 리스트가 5초마다 업데이트 되기 때문에
+        // 방장이 삭제한 방에 참가할 수도 있다.
+
         if (JoiningLobbyData is { } lobbyData)
         {
             UpdateLobbyElements(false);
@@ -332,5 +423,7 @@ public class LobbyListMenu : MonoBehaviour
         SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerId", SteamUser.GetSteamID().m_SteamID.ToString());
         SteamMatchmaking.SetLobbyData(lobbyId, "LobbyName", MyLobbyNameValue);
         SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerName", SteamFriends.GetPersonaName());
+
+        RefreshLobbyMemberList();
     }
 }
