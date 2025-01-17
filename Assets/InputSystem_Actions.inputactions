@@ -15,9 +15,27 @@
                     "initialStateCheck": true
                 },
                 {
-                    "name": "Shoot",
+                    "name": "WeaponShoot",
                     "type": "Button",
                     "id": "41358709-2c57-4ac1-b26f-5692e9600016",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "WeaponAim",
+                    "type": "Button",
+                    "id": "4e5c0bc9-a528-443f-b494-a9bd673e9f2f",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "WeaponReload",
+                    "type": "Button",
+                    "id": "8a756605-2709-4324-a65e-68ed31892651",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -87,7 +105,29 @@
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
-                    "action": "Shoot",
+                    "action": "WeaponShoot",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "23849e39-cdf2-4cc0-8476-9c19e42d727d",
+                    "path": "<Keyboard>/r",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "WeaponReload",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9a3a3d1d-755c-46f9-9932-b784196b94a8",
+                    "path": "<Mouse>/rightButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "WeaponAim",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

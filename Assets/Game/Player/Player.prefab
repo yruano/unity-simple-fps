@@ -181,6 +181,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   WalkSpeed: 4
   PrefabCmFirstPersonCamera: {fileID: 6172808420142056969, guid: 964bf43de828722469ee9e7fecef52a5, type: 3}
+  PrefabWeaponPistol: {fileID: 7443893619328943440, guid: f8a0f09af495602439411cfa7a478823, type: 3}
 --- !u!114 &2688916156329419259
 MonoBehaviour:
   m_ObjectHideFlags: 0

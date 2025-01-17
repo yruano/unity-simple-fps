@@ -9,14 +9,18 @@ public class Player : NetworkBehaviour
     [SerializeField] private float WalkSpeed = 4.0f;
 
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
+    [SerializeField] private WeaponStateMachine PrefabWeaponPistol;
 
     private PlayerCameraTarget _cameraTarget;
     private CinemachineCamera _cmFirstPersonCamera;
-
+    private WeaponStateMachine _weaponStateMachine;
     private Rigidbody _rb;
 
     private InputAction _inputMove;
-    private InputAction _inputShoot;
+
+    private Vector3 _cameraDir;
+
+    public bool IsDead { get; private set; } = false;
 
     private NetworkVariable<int> _healthMax = new(100);
     [CreateProperty]
@@ -34,26 +38,18 @@ public class Player : NetworkBehaviour
         set => _health.Value = Mathf.Clamp(value, 0, HealthMax);
     }
 
-    private int _bulletCount = 10;
-    private int BulletCount
-    {
-        get => _bulletCount;
-        set => _bulletCount = Mathf.Clamp(value, 0, 10);
-    }
-
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
-        _inputShoot = InputSystem.actions.FindAction("Player/Shoot");
     }
 
     public override void OnNetworkSpawn()
     {
         if (IsHost)
         {
-            Init();
+            HostInit();
         }
 
         _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
@@ -67,8 +63,6 @@ public class Player : NetworkBehaviour
             _cmFirstPersonCamera.Follow = _cameraTarget.transform;
             _cmFirstPersonCamera.Priority = 1;
 
-            _inputShoot.performed += OnInputShoot;
-
             var inGameHud = FindFirstObjectByType<InGameHud>();
             inGameHud.InitPlayer(this);
         }
@@ -78,11 +72,6 @@ public class Player : NetworkBehaviour
 
     public override void OnDestroy()
     {
-        if (IsOwner)
-        {
-            _inputShoot.performed -= OnInputShoot;
-        }
-
         base.OnDestroy();
     }
 
@@ -91,6 +80,11 @@ public class Player : NetworkBehaviour
         if (IsOwner)
         {
             CameraLook();
+        }
+
+        if (IsHost)
+        {
+            CheckDeath();
         }
     }
 
@@ -136,20 +130,39 @@ public class Player : NetworkBehaviour
         }
     }
 
-    private void OnInputShoot(InputAction.CallbackContext ctx)
-    {
-        AttemptShootRpc(_cmFirstPersonCamera.transform.forward);
-    }
-
-    public void Init()
+    public void HostInit()
     {
         Health = HealthMax;
+
+        if (IsOwner)
+        {
+            _weaponStateMachine = Instantiate(PrefabWeaponPistol);
+            _weaponStateMachine.Player = this;
+        }
+    }
+
+    public Vector3 GetHeadPosition()
+    {
+        return _cameraTarget.Target.position + _cameraTarget.Offset;
+    }
+
+    public Vector3 GetCameraDir()
+    {
+        // TODO: 클라가 방향 넘겨줘야 함.
+        // return _cameraDir;
+        return _cmFirstPersonCamera.transform.forward;
     }
 
     public void CheckDeath()
     {
+        if (IsDead)
+        {
+            return;
+        }
+
         if (Health == 0)
         {
+            IsDead = true;
             OnDeathRpc();
             GetComponent<NetworkObject>().Despawn();
         }
@@ -159,31 +172,5 @@ public class Player : NetworkBehaviour
     private void OnDeathRpc()
     {
         Destroy(_cameraTarget);
-    }
-
-    [Rpc(SendTo.Server)]
-    private void AttemptShootRpc(Vector3 shootDir)
-    {
-        if (BulletCount == 0)
-        {
-            return;
-        }
-
-        var rayPos = _cameraTarget.transform.position;
-        var rayDir = shootDir;
-        var rayDist = 100f;
-
-        Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
-
-        if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
-        {
-            var collider = rayHitInfo.collider;
-            if (collider != this && collider.CompareTag("Player"))
-            {
-                var player = collider.GetComponent<Player>();
-                player.Health -= 20;
-                player.CheckDeath();
-            }
-        }
     }
 }
