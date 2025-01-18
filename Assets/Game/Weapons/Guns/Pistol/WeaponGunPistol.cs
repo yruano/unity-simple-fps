@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.Netcode;
 
 public class StateGunPistolIdle : WeaponState
 {
@@ -26,19 +27,22 @@ public class StateGunPistolShoot : WeaponState
 
             ctx.AmmoCount -= 1;
 
-            var rayPos = StateMachine.Player.GetHeadPosition();
-            var rayDir = StateMachine.Player.GetCameraDir();
-            var rayDist = 100f;
-
-            Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
-
-            if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
+            if (NetworkManager.Singleton.IsHost)
             {
-                var collider = rayHitInfo.collider;
-                if (collider != StateMachine.Player && collider.CompareTag("Player"))
+                var rayPos = StateMachine.Player.GetHeadPosition();
+                var rayDir = StateMachine.Player.GetCameraDir();
+                var rayDist = 100f;
+
+                Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
+
+                if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
                 {
-                    var player = collider.GetComponent<Player>();
-                    player.Health -= 20;
+                    var collider = rayHitInfo.collider;
+                    if (collider != StateMachine.Player && collider.CompareTag("Player"))
+                    {
+                        var player = collider.GetComponent<Player>();
+                        player.Health -= 20;
+                    }
                 }
             }
         });
@@ -67,10 +71,29 @@ public class TransitionPisolNormal : WeaponStateTransition
     {
         var ctx = stateMachine.Context as ContextGunPistol;
 
+        var inputWeaponShoot = false;
+        var inputWeaponAim = false;
+        var inputWeaponReload = false;
+
+        if (NetworkManager.Singleton.IsHost && !stateMachine.Player.IsOwner)
+        {
+            inputWeaponShoot = stateMachine.ClientInput.InputWeaponShoot;
+            inputWeaponAim = stateMachine.ClientInput.InputWeaponAim;
+            inputWeaponReload = stateMachine.ClientInput.InputWeaponReload;
+        }
+        else if (stateMachine.Player.IsOwner)
+        {
+            inputWeaponShoot = ctx.InputWeaponShoot.IsPressed();
+            inputWeaponAim = ctx.InputWeaponAim.IsPressed();
+            inputWeaponReload = ctx.InputWeaponReload.IsPressed();
+        }
+
         if (stateMachine.CurrentState is StateGunPistolIdle)
         {
-            if (ctx.AmmoCount > 0 && ctx.InputWeaponShoot.IsPressed())
+            if (ctx.AmmoCount > 0 && inputWeaponShoot)
+            {
                 return ctx.StateShoot;
+            }
         }
 
         if (stateMachine.CurrentState is StateGunPistolShoot)
@@ -113,11 +136,42 @@ public class ContextGunPistol : WeaponStateMachineContext
 public class WeaponGunPistol : MonoBehaviour
 {
     private WeaponStateMachine _stateMachine;
+    private ContextGunPistol _context = new();
 
     private void Awake()
     {
-        Debug.Log("WeaponGunPistol");
         _stateMachine = GetComponent<WeaponStateMachine>();
-        _stateMachine.Context = new ContextGunPistol();
+        _stateMachine.Context = _context;
+    }
+
+    private void Update()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            return;
+        }
+
+        _stateMachine.OnUpdate();
+
+        if (!NetworkManager.Singleton.IsHost && _stateMachine.Player.IsOwner)
+        {
+            _stateMachine.Player.SendInputToWeaponRpc(new WeaponInput
+            {
+                InputCameraDir = _stateMachine.Player.GetCameraDir(),
+                InputWeaponShoot = _context.InputWeaponShoot.IsPressed(),
+                InputWeaponAim = _context.InputWeaponAim.IsPressed(),
+                InputWeaponReload = _context.InputWeaponReload.IsPressed()
+            });
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            return;
+        }
+
+        _stateMachine.OnFixedUpdate();
     }
 }

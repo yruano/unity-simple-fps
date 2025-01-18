@@ -11,14 +11,13 @@ public class Player : NetworkBehaviour
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
     [SerializeField] private WeaponStateMachine PrefabWeaponPistol;
 
-    private PlayerCameraTarget _cameraTarget;
-    private CinemachineCamera _cmFirstPersonCamera;
-    private WeaponStateMachine _weaponStateMachine;
     private Rigidbody _rb;
 
     private InputAction _inputMove;
 
-    private Vector3 _cameraDir;
+    private PlayerCameraTarget _cameraTarget;
+    private CinemachineCamera _cmFirstPersonCamera;
+    private WeaponStateMachine _weaponStateMachine;
 
     public bool IsDead { get; private set; } = false;
 
@@ -56,6 +55,9 @@ public class Player : NetworkBehaviour
         _cameraTarget.Target = transform;
         _cameraTarget.Offset = Vector3.up * 0.5f;
         _cameraTarget.MoveToTarget();
+
+        _weaponStateMachine = Instantiate(PrefabWeaponPistol);
+        _weaponStateMachine.Player = this;
 
         if (IsOwner)
         {
@@ -133,12 +135,6 @@ public class Player : NetworkBehaviour
     public void HostInit()
     {
         Health = HealthMax;
-
-        if (IsOwner)
-        {
-            _weaponStateMachine = Instantiate(PrefabWeaponPistol);
-            _weaponStateMachine.Player = this;
-        }
     }
 
     public Vector3 GetHeadPosition()
@@ -148,9 +144,14 @@ public class Player : NetworkBehaviour
 
     public Vector3 GetCameraDir()
     {
-        // TODO: 클라가 방향 넘겨줘야 함.
-        // return _cameraDir;
-        return _cmFirstPersonCamera.transform.forward;
+        if (IsOwner)
+        {
+            return _cmFirstPersonCamera.transform.forward;
+        }
+        else
+        {
+            return _weaponStateMachine.ClientInput.InputCameraDir;
+        }
     }
 
     public void CheckDeath()
@@ -172,5 +173,17 @@ public class Player : NetworkBehaviour
     private void OnDeathRpc()
     {
         Destroy(_cameraTarget);
+    }
+
+    [Rpc(SendTo.Server)]
+    public void SendInputToWeaponRpc(WeaponInput input)
+    {
+        if (_weaponStateMachine != null)
+        {
+            _weaponStateMachine.ClientInput.InputCameraDir = input.InputCameraDir;
+            _weaponStateMachine.ClientInput.InputWeaponShoot = input.InputWeaponShoot;
+            _weaponStateMachine.ClientInput.InputWeaponAim = input.InputWeaponAim;
+            _weaponStateMachine.ClientInput.InputWeaponReload = input.InputWeaponReload;
+        }
     }
 }

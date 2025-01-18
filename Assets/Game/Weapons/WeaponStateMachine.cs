@@ -1,9 +1,19 @@
 using System;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public struct WeaponInput : INetworkSerializeByMemcpy
+{
+    public Vector3 InputCameraDir;
+    public bool InputWeaponShoot;
+    public bool InputWeaponAim;
+    public bool InputWeaponReload;
+}
+
 public class WeaponState
 {
+    public int Id;
     public WeaponStateMachine StateMachine;
     public Func<WeaponStateMachine, bool> IsRestart = (_) => true;
     public Func<WeaponStateMachine, bool> IsDone = (_) => false;
@@ -11,6 +21,7 @@ public class WeaponState
     public virtual void Init(WeaponStateMachine stateMachine)
     {
         StateMachine = stateMachine;
+        Id = StateMachine.StateCount++;
     }
 
     public virtual void OnStateEnter() { }
@@ -34,16 +45,20 @@ public class WeaponStateMachineContext
 
     public virtual void Init(WeaponStateMachine stateMachine)
     {
-        InputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
-        InputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
-        InputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
+        if (stateMachine.Player.IsOwner)
+        {
+            InputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
+            InputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
+            InputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
+        }
     }
 }
 
 public class WeaponStateMachine : MonoBehaviour
 {
-    [HideInInspector]
-    public Player Player;
+    [HideInInspector] public Player Player;
+    [HideInInspector] public int StateCount = 0;
+    public WeaponInput ClientInput;
     public WeaponStateMachineContext Context;
     public WeaponState CurrentState;
     public WeaponStateTransition CurrentTransition;
@@ -53,18 +68,14 @@ public class WeaponStateMachine : MonoBehaviour
         Context.Init(this);
     }
 
-    protected virtual void Update()
-    {
-        OnUpdate();
-    }
-
-    protected virtual void FixedUpdate()
-    {
-        OnFixedUpdate();
-    }
-
     public virtual void OnUpdate()
     {
+        // FIXME: Start gets run after Update...
+        if (CurrentState is null)
+        {
+            return;
+        }
+
         if (CurrentState is null)
         {
             Debug.LogError("CurrentState is null!");
@@ -105,6 +116,11 @@ public class WeaponStateMachine : MonoBehaviour
 
     public virtual void OnFixedUpdate()
     {
+        if (CurrentState is null)
+        {
+            return;
+        }
+
         if (CurrentState is null)
         {
             Debug.LogError("Current State is null!");
