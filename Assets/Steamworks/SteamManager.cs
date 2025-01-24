@@ -1,3 +1,4 @@
+using System.Collections;
 using Steamworks;
 using UnityEngine;
 
@@ -18,6 +19,9 @@ public class SteamManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         InitSteamworks();
+
+        var coroUpdate = CoroUpdate();
+        StartCoroutine(coroUpdate);
     }
 
     private void OnDestroy()
@@ -34,13 +38,20 @@ public class SteamManager : MonoBehaviour
         }
     }
 
-    private void Update()
+    IEnumerator CoroUpdate()
     {
-        if (IsInitialized)
+        while (Singleton != null)
         {
-            // Run Steam client callbacks
-            SteamAPI.RunCallbacks();
+            if (IsInitialized)
+            {
+                // Run Steam client callbacks
+                SteamAPI.RunCallbacks();
+            }
+
+            yield return new WaitForEndOfFrame();
         }
+
+        yield return null;
     }
 
     private void InitSteamworks()

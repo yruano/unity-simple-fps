@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public struct WeaponInput : INetworkSerializeByMemcpy
 {
+    public UInt64 Tick;
+    public float DeltaTime;
     public Vector3 InputCameraDir;
     public bool InputWeaponShoot;
     public bool InputWeaponAim;
@@ -13,30 +17,46 @@ public struct WeaponInput : INetworkSerializeByMemcpy
 
 public class WeaponState
 {
-    public int Id;
     public WeaponStateMachine StateMachine;
-    public Func<WeaponStateMachine, bool> IsRestart = (_) => true;
-    public Func<WeaponStateMachine, bool> IsDone = (_) => false;
 
     public virtual void Init(WeaponStateMachine stateMachine)
     {
         StateMachine = stateMachine;
-        Id = StateMachine.StateCount++;
     }
+    public virtual void Rollback(WeaponStateMachine stateMachine) { }
+
+    public virtual bool IsRestart() => true;
+    public virtual bool IsDone() => false;
 
     public virtual void OnStateEnter() { }
     public virtual void OnStateExit() { }
-    public virtual void OnStateUpdate() { }
-    public virtual void OnStateFixedUpdate() { }
+    public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
 }
 
-public abstract class WeaponStateTransition
+public enum WeaponTickDataType
 {
-    public abstract WeaponState GetNextState(WeaponStateMachine stateMachine);
+    GunPistol,
 }
 
-public class WeaponStateMachineContext
+[StructLayout(LayoutKind.Sequential)]
+public class WeaponTickData
 {
+    public UInt64 Type;
+    public UInt64 Tick;
+
+    public virtual byte[] Serialize()
+    {
+        return null;
+    }
+}
+
+public class WeaponContext
+{
+    // 무기 State machine은 Context에 있는 정보만 읽고 써야한다.
+    // 그렇지 않으면 Rollback을 제대로 못한다.
+
+    public WeaponState[] States;
+    public int CurrentStateIndex;
     public UInt64 CommonFlags;
 
     public InputAction InputWeaponShoot;
@@ -52,23 +72,64 @@ public class WeaponStateMachineContext
             InputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
         }
     }
+
+    public WeaponState GetState<T>(T index) where T : Enum
+    {
+        return States[(int)(object)index];
+    }
+
+    public virtual WeaponTickData GetTickData(UInt64 tick)
+    {
+        return null;
+    }
+
+    public virtual void ApplyTickData(WeaponTickData tickData) { }
+
+    public virtual int GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
+    {
+        return 0;
+    }
 }
 
-public class WeaponStateMachine : MonoBehaviour
+public class WeaponStateMachine
 {
-    [HideInInspector] public Player Player;
-    [HideInInspector] public int StateCount = 0;
-    public WeaponInput ClientInput;
-    public WeaponStateMachineContext Context;
+    public Player Player;
+    public WeaponContext Context;
     public WeaponState CurrentState;
-    public WeaponStateTransition CurrentTransition;
 
-    protected virtual void Start()
+    public List<WeaponInput> InputBuffer = new();
+    public List<WeaponTickData> TickBuffer = new();
+
+    public void Init(Player player, WeaponContext context)
     {
+        Player = player;
+        Context = context;
         Context.Init(this);
     }
 
-    public virtual void OnUpdate()
+    public void SetCurrentState(int stateIndex)
+    {
+        Context.CurrentStateIndex = stateIndex;
+        CurrentState = Context.States[stateIndex];
+    }
+
+    public void PushTickData(WeaponInput input, WeaponTickData tickData)
+    {
+        InputBuffer.Add(input);
+        if (InputBuffer.Count >= 30)
+            InputBuffer.RemoveAt(0);
+
+        TickBuffer.Add(tickData);
+        if (TickBuffer.Count >= 30)
+            TickBuffer.RemoveAt(0);
+    }
+
+    public int GetTickDataIndexFromBuffer(UInt64 tick)
+    {
+        return TickBuffer.FindIndex(item => item.Tick == tick);
+    }
+
+    public virtual void OnUpdate(WeaponInput input, float deltaTime)
     {
         // FIXME: Start gets run after Update...
         if (CurrentState is null)
@@ -76,59 +137,25 @@ public class WeaponStateMachine : MonoBehaviour
             return;
         }
 
-        if (CurrentState is null)
+        var nextState = Context.GetNextState(this, input);
+        if (nextState != 0)
         {
-            Debug.LogError("CurrentState is null!");
-            Debug.Break();
-        }
-        else
-        {
-            CurrentState.OnStateUpdate();
-
-            if (CurrentTransition is null)
+            if (nextState == Context.CurrentStateIndex)
             {
-                Debug.LogError("CurrentTransition is null!");
-                Debug.Break();
+                if (CurrentState.IsRestart())
+                {
+                    CurrentState.OnStateExit();
+                    CurrentState.OnStateEnter();
+                }
             }
             else
             {
-                var nextState = CurrentTransition.GetNextState(this);
-                if (nextState is not null)
-                {
-                    if (nextState == CurrentState)
-                    {
-                        if (CurrentState.IsRestart(this))
-                        {
-                            CurrentState.OnStateExit();
-                            CurrentState.OnStateEnter();
-                        }
-                    }
-                    else
-                    {
-                        CurrentState.OnStateExit();
-                        CurrentState = nextState;
-                        CurrentState.OnStateEnter();
-                    }
-                }
+                CurrentState.OnStateExit();
+                SetCurrentState(nextState);
+                CurrentState.OnStateEnter();
             }
         }
-    }
 
-    public virtual void OnFixedUpdate()
-    {
-        if (CurrentState is null)
-        {
-            return;
-        }
-
-        if (CurrentState is null)
-        {
-            Debug.LogError("Current State is null!");
-            Debug.Break();
-        }
-        else
-        {
-            CurrentState.OnStateFixedUpdate();
-        }
+        CurrentState.OnStateUpdate(input, deltaTime);
     }
 }

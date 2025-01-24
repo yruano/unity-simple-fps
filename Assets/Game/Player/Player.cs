@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Properties;
@@ -9,7 +11,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private float WalkSpeed = 4.0f;
 
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
-    [SerializeField] private WeaponStateMachine PrefabWeaponPistol;
+    [SerializeField] private Weapon PrefabWeaponPistol;
 
     private Rigidbody _rb;
 
@@ -17,7 +19,9 @@ public class Player : NetworkBehaviour
 
     private PlayerCameraTarget _cameraTarget;
     private CinemachineCamera _cmFirstPersonCamera;
-    private WeaponStateMachine _weaponStateMachine;
+    private Weapon _weapon;
+    public WeaponTickData LatestWeaponTickData;
+    public Queue<WeaponInput> RecivedWeaponInputs = new();
 
     public bool IsDead { get; private set; } = false;
 
@@ -56,8 +60,11 @@ public class Player : NetworkBehaviour
         _cameraTarget.Offset = Vector3.up * 0.5f;
         _cameraTarget.MoveToTarget();
 
-        _weaponStateMachine = Instantiate(PrefabWeaponPistol);
-        _weaponStateMachine.Player = this;
+        if (IsHost || IsOwner)
+        {
+            _weapon = Instantiate(PrefabWeaponPistol);
+            _weapon.Init(this);
+        }
 
         if (IsOwner)
         {
@@ -144,14 +151,7 @@ public class Player : NetworkBehaviour
 
     public Vector3 GetCameraDir()
     {
-        if (IsOwner)
-        {
-            return _cmFirstPersonCamera.transform.forward;
-        }
-        else
-        {
-            return _weaponStateMachine.ClientInput.InputCameraDir;
-        }
+        return _cmFirstPersonCamera.transform.forward;
     }
 
     public void CheckDeath()
@@ -176,14 +176,31 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.Server)]
-    public void SendInputToWeaponRpc(WeaponInput input)
+    public void SendWeaponInputToServerRpc(WeaponInput input)
     {
-        if (_weaponStateMachine != null)
+        RecivedWeaponInputs.Enqueue(input);
+    }
+
+    // FIXME: RPC 매개변수로 상속된 클래스 못넘겨줌
+    [Rpc(SendTo.Owner)]
+    public void SendWeaponStateToOwnerRpc(byte[] weaponTickData)
+    {
+        var reader = new FastBufferReader(weaponTickData, Unity.Collections.Allocator.Temp);
+        if (!reader.TryBeginRead(weaponTickData.Length))
         {
-            _weaponStateMachine.ClientInput.InputCameraDir = input.InputCameraDir;
-            _weaponStateMachine.ClientInput.InputWeaponShoot = input.InputWeaponShoot;
-            _weaponStateMachine.ClientInput.InputWeaponAim = input.InputWeaponAim;
-            _weaponStateMachine.ClientInput.InputWeaponReload = input.InputWeaponReload;
+            throw new OverflowException("Not enough space in the buffer");
+        }
+
+        using (reader)
+        {
+            reader.ReadValue(out UInt64 type);
+            reader.ReadValue(out UInt64 tick);
+            switch (type)
+            {
+                case (int)WeaponTickDataType.GunPistol:
+                    LatestWeaponTickData = WeaponTickDataGunPistol.NewFromReader(type, tick, reader);
+                    break;
+            }
         }
     }
 }
