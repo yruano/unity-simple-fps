@@ -19,6 +19,7 @@ public class Player : NetworkBehaviour
 
     private PlayerCameraTarget _cameraTarget;
     private CinemachineCamera _cmFirstPersonCamera;
+
     private Weapon _weapon;
     public WeaponTickData LatestWeaponTickData;
     public Queue<WeaponInput> RecivedWeaponInputs = new();
@@ -60,11 +61,8 @@ public class Player : NetworkBehaviour
         _cameraTarget.Offset = Vector3.up * 0.5f;
         _cameraTarget.MoveToTarget();
 
-        if (IsHost || IsOwner)
-        {
-            _weapon = Instantiate(PrefabWeaponPistol);
-            _weapon.Init(this);
-        }
+        _weapon = Instantiate(PrefabWeaponPistol);
+        _weapon.Init(this);
 
         if (IsOwner)
         {
@@ -81,6 +79,11 @@ public class Player : NetworkBehaviour
 
     public override void OnDestroy()
     {
+        if (_weapon != null)
+        {
+            Destroy(_weapon);
+        }
+
         base.OnDestroy();
     }
 
@@ -181,7 +184,6 @@ public class Player : NetworkBehaviour
         RecivedWeaponInputs.Enqueue(input);
     }
 
-    // FIXME: RPC 매개변수로 상속된 클래스 못넘겨줌
     [Rpc(SendTo.Owner)]
     public void SendWeaponStateToOwnerRpc(byte[] weaponTickData)
     {
@@ -193,12 +195,13 @@ public class Player : NetworkBehaviour
 
         using (reader)
         {
-            reader.ReadValue(out UInt64 type);
-            reader.ReadValue(out UInt64 tick);
+            reader.ReadValue(out ulong type);
+            reader.ReadValue(out ulong tick);
+            reader.ReadValue(out uint stateIndex);
             switch (type)
             {
-                case (int)WeaponTickDataType.GunPistol:
-                    LatestWeaponTickData = WeaponTickDataGunPistol.NewFromReader(type, tick, reader);
+                case (ulong)WeaponTickDataType.GunPistol:
+                    LatestWeaponTickData = WeaponTickDataGunPistol.NewFromReader(type, tick, stateIndex, reader);
                     break;
             }
         }

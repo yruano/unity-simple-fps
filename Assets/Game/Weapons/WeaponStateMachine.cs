@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 
 public struct WeaponInput : INetworkSerializeByMemcpy
 {
-    public UInt64 Tick;
+    public ulong Tick;
     public float DeltaTime;
     public Vector3 InputCameraDir;
     public bool InputWeaponShoot;
@@ -33,31 +33,39 @@ public class WeaponState
     public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
 }
 
-public enum WeaponTickDataType
+public enum WeaponTickDataType : ulong
 {
     GunPistol,
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public class WeaponTickData
+public abstract class WeaponTickData
 {
-    public UInt64 Type;
-    public UInt64 Tick;
+    public ulong Type;
+    public ulong Tick;
+    public uint StateIndex;
 
-    public virtual byte[] Serialize()
+    public abstract byte[] Serialize();
+
+    public virtual bool IsEqual(WeaponTickData other)
     {
-        return null;
+        if (other == null)
+            return false;
+
+        return Type == other.Type
+            && Tick == other.Tick
+            && StateIndex == other.StateIndex;
     }
 }
 
+// NOTE:
+// WeaponState는 Context에 있는 정보만 읽고 써야한다.
+// 그렇지 않으면 Rollback을 제대로 할 수 없다.
 public class WeaponContext
 {
-    // 무기 State machine은 Context에 있는 정보만 읽고 써야한다.
-    // 그렇지 않으면 Rollback을 제대로 못한다.
-
     public WeaponState[] States;
-    public int CurrentStateIndex;
-    public UInt64 CommonFlags;
+    public uint CurrentStateIndex;
+    public ulong CommonFlags;
 
     public InputAction InputWeaponShoot;
     public InputAction InputWeaponAim;
@@ -78,14 +86,14 @@ public class WeaponContext
         return States[(int)(object)index];
     }
 
-    public virtual WeaponTickData GetTickData(UInt64 tick)
+    public virtual WeaponTickData GetTickData(ulong tick)
     {
         return null;
     }
 
     public virtual void ApplyTickData(WeaponTickData tickData) { }
 
-    public virtual int GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
+    public virtual uint GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
     {
         return 0;
     }
@@ -107,7 +115,7 @@ public class WeaponStateMachine
         Context.Init(this);
     }
 
-    public void SetCurrentState(int stateIndex)
+    public void SetCurrentState(uint stateIndex)
     {
         Context.CurrentStateIndex = stateIndex;
         CurrentState = Context.States[stateIndex];
@@ -124,16 +132,16 @@ public class WeaponStateMachine
             TickBuffer.RemoveAt(0);
     }
 
-    public int GetTickDataIndexFromBuffer(UInt64 tick)
+    public int GetTickDataIndexFromBuffer(ulong tick)
     {
         return TickBuffer.FindIndex(item => item.Tick == tick);
     }
 
     public virtual void OnUpdate(WeaponInput input, float deltaTime)
     {
-        // FIXME: Start gets run after Update...
         if (CurrentState is null)
         {
+            Debug.LogError("CurrentState is null");
             return;
         }
 

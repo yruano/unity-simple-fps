@@ -3,9 +3,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using Unity.Netcode;
 
-public class WeaponStateGunPistolIdle : WeaponState
-{
-}
+public class WeaponStateGunPistolIdle : WeaponState { }
 
 public class WeaponStateGunPistolShoot : WeaponState
 {
@@ -75,18 +73,30 @@ public class WeaponStateGunPistolShoot : WeaponState
     }
 }
 
-public class WeaponStateGunPistolReload : WeaponState
-{
-}
+public class WeaponStateGunPistolReload : WeaponState { }
 
 [StructLayout(LayoutKind.Sequential)]
 public class WeaponTickDataGunPistol : WeaponTickData
 {
-    public int StateIndex;
     public int MagazineSize;
     public int AmmoCount;
     public float ShootTimerDuration;
     public float ShootTimerTime;
+
+    public static WeaponTickDataGunPistol NewFromReader(ulong type, ulong tick, uint stateIndex, FastBufferReader reader)
+    {
+        var result = new WeaponTickDataGunPistol
+        {
+            Type = type,
+            Tick = tick,
+            StateIndex = stateIndex,
+        };
+        reader.ReadValue(out result.MagazineSize);
+        reader.ReadValue(out result.AmmoCount);
+        reader.ReadValue(out result.ShootTimerDuration);
+        reader.ReadValue(out result.ShootTimerTime);
+        return result;
+    }
 
     public override byte[] Serialize()
     {
@@ -112,19 +122,23 @@ public class WeaponTickDataGunPistol : WeaponTickData
         return result;
     }
 
-    public static WeaponTickDataGunPistol NewFromReader(UInt64 type, UInt64 tick, FastBufferReader reader)
+    public override bool IsEqual(WeaponTickData other)
     {
-        var result = new WeaponTickDataGunPistol
+        if (other is WeaponTickDataGunPistol otherGunPistol)
         {
-            Type = type,
-            Tick = tick,
-        };
-        reader.ReadValue(out result.StateIndex);
-        reader.ReadValue(out result.MagazineSize);
-        reader.ReadValue(out result.AmmoCount);
-        reader.ReadValue(out result.ShootTimerDuration);
-        reader.ReadValue(out result.ShootTimerTime);
-        return result;
+            var result = base.IsEqual(other);
+            if (!result) return false;
+            result = result && StateIndex == otherGunPistol.StateIndex;
+            result = result && MagazineSize == otherGunPistol.MagazineSize;
+            result = result && AmmoCount == otherGunPistol.AmmoCount;
+            result = result && ShootTimerDuration == otherGunPistol.ShootTimerDuration;
+            result = result && ShootTimerTime == otherGunPistol.ShootTimerTime;
+            return result;
+        }
+        else
+        {
+            return false;
+        }
     }
 }
 
@@ -164,11 +178,11 @@ public class WeaponContextGunPistol : WeaponContext
         stateMachine.SetCurrentState((int)StateIndex.Idle);
     }
 
-    public override WeaponTickData GetTickData(UInt64 tick)
+    public override WeaponTickData GetTickData(ulong tick)
     {
         return new WeaponTickDataGunPistol
         {
-            Type = (UInt64)WeaponTickDataType.GunPistol,
+            Type = (ulong)WeaponTickDataType.GunPistol,
             Tick = tick,
             StateIndex = CurrentStateIndex,
             MagazineSize = MagazineSize,
@@ -194,7 +208,7 @@ public class WeaponContextGunPistol : WeaponContext
         }
     }
 
-    public override int GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
+    public override uint GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
     {
         var ctx = stateMachine.Context as WeaponContextGunPistol;
 
@@ -202,7 +216,7 @@ public class WeaponContextGunPistol : WeaponContext
         {
             if (ctx.AmmoCount > 0 && input.InputWeaponShoot)
             {
-                return (int)StateIndex.Shoot;
+                return (uint)StateIndex.Shoot;
             }
         }
 
@@ -210,7 +224,7 @@ public class WeaponContextGunPistol : WeaponContext
         {
             if (stateMachine.CurrentState.IsDone())
             {
-                return (int)StateIndex.Idle;
+                return (uint)StateIndex.Idle;
             }
         }
 
@@ -222,7 +236,7 @@ public class WeaponGunPistol : Weapon
 {
     private WeaponStateMachine _stateMachine = new();
     private WeaponContextGunPistol _context = new();
-    private UInt64 _tick = 0;
+    private ulong _tick = 0;
 
     public override void Init(Player player)
     {
@@ -231,10 +245,8 @@ public class WeaponGunPistol : Weapon
 
     private void Update()
     {
-        if (NetworkManager.Singleton == null)
-        {
+        if (!_stateMachine.Player.IsSpawned)
             return;
-        }
 
         if (_stateMachine.Player.IsOwner)
         {
@@ -277,7 +289,7 @@ public class WeaponGunPistol : Weapon
         if (_stateMachine.Player.IsHost)
         {
             // Process input.
-            UInt64 lastProcessedTick = 0;
+            ulong lastProcessedTick = 0;
             while (_stateMachine.Player.RecivedWeaponInputs.Count > 0)
             {
                 var input = _stateMachine.Player.RecivedWeaponInputs.Dequeue();
@@ -296,7 +308,7 @@ public class WeaponGunPistol : Weapon
 
     private void Reconcile()
     {
-        var serverTickData = _stateMachine.Player.LatestWeaponTickData as WeaponTickDataGunPistol;
+        var serverTickData = _stateMachine.Player.LatestWeaponTickData;
         if (serverTickData is not null)
         {
             _stateMachine.Player.LatestWeaponTickData = null;
@@ -304,22 +316,14 @@ public class WeaponGunPistol : Weapon
             var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Tick);
             if (i == -1) return;
 
-            var predictedTickData = _stateMachine.TickBuffer[i] as WeaponTickDataGunPistol;
+            var predictedTickData = _stateMachine.TickBuffer[i];
 
             // Remove old data.
             _stateMachine.InputBuffer.RemoveRange(0, i + 1);
             _stateMachine.TickBuffer.RemoveRange(0, i + 1);
 
-            var isEqual = true;
-            isEqual = isEqual && (serverTickData.Type == predictedTickData.Type);
-            isEqual = isEqual && (serverTickData.StateIndex == predictedTickData.StateIndex);
-            isEqual = isEqual && (serverTickData.MagazineSize == predictedTickData.MagazineSize);
-            isEqual = isEqual && (serverTickData.AmmoCount == predictedTickData.AmmoCount);
-            isEqual = isEqual && (serverTickData.ShootTimerDuration == predictedTickData.ShootTimerDuration);
-            isEqual = isEqual && (serverTickData.ShootTimerTime == predictedTickData.ShootTimerTime);
-
             // Check prediction.
-            if (isEqual)
+            if (serverTickData.IsEqual(predictedTickData))
             {
                 // Prediction success.
                 Debug.Log("Prediction success");
