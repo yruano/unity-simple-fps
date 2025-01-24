@@ -1,17 +1,25 @@
+using System.Collections.Generic;
 using Steamworks;
 using UnityEngine;
 using Unity.Netcode;
 using Netcode.Transports;
+
+public class GameUser
+{
+    public ulong NetId;
+    public Player Player;
+}
 
 public class LobbyManager : MonoBehaviour
 {
     public static LobbyManager Singleton { get; private set; }
 
     public CSteamID? JoinedLobbyId { get; private set; }
+    public Dictionary<CSteamID, GameUser> Users = new();
 
-    private CallResult<LobbyEnter_t> _onJoinLobby;
-    private Callback<LobbyChatUpdate_t> _onClientLobbyEvent;
-    private Callback<GameLobbyJoinRequested_t> _onGameLobbyJoinRequested;
+    private CallResult<LobbyEnter_t> _steamOnJoinLobby;
+    private Callback<LobbyChatUpdate_t> _steamOnClientLobbyEvent;
+    private Callback<GameLobbyJoinRequested_t> _steamOnGameLobbyJoinRequested;
 
     private void Awake()
     {
@@ -28,19 +36,29 @@ public class LobbyManager : MonoBehaviour
     {
         if (SteamManager.IsInitialized)
         {
-            _onJoinLobby = new(OnJoinLobby);
-            _onClientLobbyEvent = new(OnClientLobbyEvent);
-            _onGameLobbyJoinRequested = new(OnGameLobbyJoinRequested);
+            _steamOnJoinLobby = new(SteamOnJoinLobby);
+            _steamOnClientLobbyEvent = new(SteamOnClientLobbyEvent);
+            _steamOnGameLobbyJoinRequested = new(SteamOnGameLobbyJoinRequested);
         }
 
         NetworkManager.Singleton.OnClientConnectedCallback += (ulong clientId) =>
         {
-            Debug.Log($"NetworkManager client connected: {clientId}");
+            Debug.Log($"[NetworkManager] client connected: {clientId}");
+
+            if (NetworkManager.Singleton.IsHost)
+            {
+                // TODO: SteamNetworkingSocketsTransport 파일 복사해서 connectionMapping public으로 만들기
+
+                if (NetworkManager.Singleton.LocalClientId == clientId)
+                {
+                    Users.Add(SteamUser.GetSteamID(), new GameUser { NetId = clientId });
+                }
+            }
         };
 
         NetworkManager.Singleton.OnClientStopped += (bool isHost) =>
         {
-            Debug.Log($"OnClientStopped");
+            Debug.Log($"[NetworkManager] OnClientStopped");
             if (NetworkManager.Singleton.IsClient)
             {
                 LeaveLobby();
@@ -52,7 +70,7 @@ public class LobbyManager : MonoBehaviour
             switch (data.EventType)
             {
                 case ConnectionEvent.PeerDisconnected:
-                    Debug.Log($"PeerDisconnected: {data.ClientId}");
+                    Debug.Log($"[NetworkManager] PeerDisconnected: {data.ClientId}");
                     break;
             }
         };
@@ -82,17 +100,6 @@ public class LobbyManager : MonoBehaviour
         JoinedLobbyId = null;
     }
 
-    public void LeaveLobby()
-    {
-        if (JoinedLobbyId is { } id)
-        {
-            Debug.Log("You left the lobby.");
-            SteamMatchmaking.LeaveLobby(id);
-            NetworkManager.Singleton.Shutdown();
-            ClearJoinedLobbyId();
-        }
-    }
-
     public void JoinLobby(CSteamID lobbyId, CSteamID lobbyOwnerId)
     {
         // Leave current lobby.
@@ -117,45 +124,56 @@ public class LobbyManager : MonoBehaviour
         transport.ConnectToSteamID = lobbyOwnerId.m_SteamID;
 
         SetJoinedLobbyId(lobbyId);
-        _onJoinLobby.Set(SteamMatchmaking.JoinLobby(lobbyId));
+        _steamOnJoinLobby.Set(SteamMatchmaking.JoinLobby(lobbyId));
     }
 
-    private void OnJoinLobby(LobbyEnter_t arg, bool bIOFailure)
+    public void LeaveLobby()
+    {
+        if (JoinedLobbyId is { } id)
+        {
+            Debug.Log("You left the lobby.");
+            SteamMatchmaking.LeaveLobby(id);
+            NetworkManager.Singleton.Shutdown();
+            ClearJoinedLobbyId();
+        }
+    }
+
+    private void SteamOnJoinLobby(LobbyEnter_t arg, bool bIOFailure)
     {
         if (bIOFailure)
         {
-            Debug.LogError("OnJoinLobby IOFailure.");
+            Debug.LogError("[Steamworks.NET] OnJoinLobby IOFailure.");
             ClearJoinedLobbyId();
             return;
         }
 
-        Debug.Log("You joined the lobby.");
+        Debug.Log("[Steamworks.NET] You joined the lobby.");
         NetworkManager.Singleton.StartClient();
     }
 
-    private void OnClientLobbyEvent(LobbyChatUpdate_t arg)
+    private void SteamOnClientLobbyEvent(LobbyChatUpdate_t arg)
     {
         // Lobby entered.
         if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
         {
             if (NetworkManager.Singleton.IsHost)
             {
-                Debug.Log($"Client joined: {arg.m_ulSteamIDUserChanged}");
+                Debug.Log($"[Steamworks.NET] Client joined: {arg.m_ulSteamIDUserChanged}");
                 var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(JoinedLobbyId.Value);
                 var curPlayers = SteamMatchmaking.GetNumLobbyMembers(JoinedLobbyId.Value);
                 if (curPlayers >= maxPlayers)
                 {
                     var userName = SteamFriends.GetFriendPersonaName(new(arg.m_ulSteamIDUserChanged));
-                    Debug.LogWarning($"Client joined while the server is full: {userName}, {arg.m_ulSteamIDUserChanged}");
+                    Debug.LogWarning($"[Steamworks.NET] Client joined while the server is full: {userName}, {arg.m_ulSteamIDUserChanged}");
                     // Steamworks api has no way to kick user...
                 }
             }
         }
     }
 
-    private void OnGameLobbyJoinRequested(GameLobbyJoinRequested_t arg)
+    private void SteamOnGameLobbyJoinRequested(GameLobbyJoinRequested_t arg)
     {
-        Debug.Log("You accepted the invite.");
+        Debug.Log("[Steamworks.NET] You accepted the invite.");
         JoinLobby(arg.m_steamIDLobby, arg.m_steamIDFriend);
     }
 }

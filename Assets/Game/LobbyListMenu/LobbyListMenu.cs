@@ -21,7 +21,7 @@ public class LobbyListEntryController
     private readonly Label _lobbyOwnerLabel;
     private readonly Button _lobbyJoinButton;
 
-    public LobbyListEntryController(LobbyListMenu lobbyListMenu, VisualElement root, EventCallback<ClickEvent> onClickJoinButton)
+    public LobbyListEntryController(LobbyDashboardMenu lobbyListMenu, VisualElement root, EventCallback<ClickEvent> onClickJoinButton)
     {
         _lobbyNameLabel = root.Q("LobbyNameLabel") as Label;
         _lobbyOwnerLabel = root.Q("LobbyOwnerLabel") as Label;
@@ -91,7 +91,7 @@ public class LobbyChatHistoryListEntryController
     }
 }
 
-public class LobbyListMenu : MonoBehaviour
+public class LobbyDashboardMenu : MonoBehaviour
 {
     [SerializeField] private VisualTreeAsset LobbyListEntryAsset;
     [SerializeField] private VisualTreeAsset LobbyMemberListEntryAsset;
@@ -139,9 +139,9 @@ public class LobbyListMenu : MonoBehaviour
     }
 
     // Steamworks
-    private CallResult<LobbyMatchList_t> _onRequestLobbyList;
-    private CallResult<LobbyCreated_t> _onCreateLobby;
-    private Callback<LobbyChatUpdate_t> _onClientLobbyEvent;
+    private CallResult<LobbyMatchList_t> _steamOnRequestLobbyList;
+    private CallResult<LobbyCreated_t> _steamOnCreateLobby;
+    private Callback<LobbyChatUpdate_t> _steamOnClientLobbyEvent;
 
     private void Awake()
     {
@@ -160,16 +160,15 @@ public class LobbyListMenu : MonoBehaviour
         _lobbyChatTextField = _root.Q("LobbyChatTextField") as TextField;
         _startMatchButton = _root.Q("StartMatchButton") as Button;
 
-        _onRequestLobbyList = new(OnRequestLobbyList);
-        _onCreateLobby = new(OnCreateLobby);
+        _steamOnRequestLobbyList = new(SteamOnRequestLobbyList);
+        _steamOnCreateLobby = new(SteamOnCreateLobby);
+        _steamOnClientLobbyEvent = new(SteamOnClientLobbyEvent);
     }
 
     private void Start()
     {
         NetworkManager.Singleton.OnClientStarted += OnClientStarted;
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
-
-        _onClientLobbyEvent = new(OnClientLobbyEvent);
 
         // Setup RefreshButton.
         _refreshButton.RegisterCallback<ClickEvent>((evt) => RefreshLobbyList());
@@ -283,7 +282,66 @@ public class LobbyListMenu : MonoBehaviour
         UpdateLobbyElements(true);
     }
 
-    private void OnClientLobbyEvent(LobbyChatUpdate_t arg)
+    private void SteamOnRequestLobbyList(LobbyMatchList_t arg, bool bIOFailure)
+    {
+        if (bIOFailure)
+        {
+            Debug.LogError("[Steamworks.NET] OnRequestLobbyList IOFailure.");
+            return;
+        }
+
+        var foundLobbiesCount = arg.m_nLobbiesMatching;
+        for (var i = 0; i < foundLobbiesCount; ++i)
+        {
+            var lobbyId = SteamMatchmaking.GetLobbyByIndex(i);
+            var lobbyOwnerId = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyOwnerId");
+            var lobbyName = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyName");
+            var lobbyOwnerName = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyOwnerName");
+
+            if (!string.IsNullOrEmpty(lobbyName))
+            {
+                _lobbyListEntries.Add(new LobbyListEntryData
+                {
+                    LobbyId = lobbyId,
+                    LobbyOwnerId = lobbyOwnerId,
+                    LobbyName = lobbyName,
+                    LobbyOwnerName = lobbyOwnerName,
+                });
+            }
+        }
+        _lobbyListView.RefreshItems();
+    }
+
+    private void SteamOnCreateLobby(LobbyCreated_t arg, bool bIOFailure)
+    {
+        if (arg.m_eResult != EResult.k_EResultOK || bIOFailure)
+        {
+            Debug.Log("[Steamworks.NET] Failed to create a lobby.");
+            NetworkManager.Singleton.Shutdown();
+
+            _lobbyListView.RefreshItems();
+            _lobbyNameTextField.SetEnabled(true);
+            _maxPlayersIntField.SetEnabled(true);
+            _friendOnlyToggle.SetEnabled(true);
+            return;
+        }
+
+        Debug.Log("[Steamworks.NET] Lobby created.");
+        LobbyManager.Singleton.SetJoinedLobbyId(arg.m_ulSteamIDLobby);
+
+        var lobbyId = new CSteamID(arg.m_ulSteamIDLobby);
+        SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerId", SteamUser.GetSteamID().m_SteamID.ToString());
+        SteamMatchmaking.SetLobbyData(lobbyId, "LobbyName", MyLobbyNameValue);
+        SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerName", SteamFriends.GetPersonaName());
+
+        var lobbyChatManager = Instantiate(PrefabLobbyChatManager);
+        var networkLobbyChatManager = lobbyChatManager.GetComponent<NetworkObject>();
+        networkLobbyChatManager.Spawn(true);
+
+        RefreshLobbyMemberList();
+    }
+
+    private void SteamOnClientLobbyEvent(LobbyChatUpdate_t arg)
     {
         // Lobby entered.
         if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
@@ -338,7 +396,7 @@ public class LobbyListMenu : MonoBehaviour
     {
         _lobbyListEntries.Clear();
         _lobbyListView.ClearSelection();
-        _onRequestLobbyList.Set(SteamMatchmaking.RequestLobbyList());
+        _steamOnRequestLobbyList.Set(SteamMatchmaking.RequestLobbyList());
     }
 
     private void RefreshLobbyMemberList()
@@ -406,7 +464,7 @@ public class LobbyListMenu : MonoBehaviour
             }
 
             var lobbyType = _friendOnlyToggle.value ? ELobbyType.k_ELobbyTypeFriendsOnly : ELobbyType.k_ELobbyTypePublic;
-            _onCreateLobby.Set(SteamMatchmaking.CreateLobby(lobbyType, MyMaxPlayersValue));
+            _steamOnCreateLobby.Set(SteamMatchmaking.CreateLobby(lobbyType, MyMaxPlayersValue));
         }
         else
         {
@@ -439,64 +497,5 @@ public class LobbyListMenu : MonoBehaviour
         {
             Debug.Log("StartMatchButton: You are not the host.");
         }
-    }
-
-    private void OnRequestLobbyList(LobbyMatchList_t arg, bool bIOFailure)
-    {
-        if (bIOFailure)
-        {
-            Debug.LogError("OnRequestLobbyList IOFailure.");
-            return;
-        }
-
-        var foundLobbiesCount = arg.m_nLobbiesMatching;
-        for (var i = 0; i < foundLobbiesCount; ++i)
-        {
-            var lobbyId = SteamMatchmaking.GetLobbyByIndex(i);
-            var lobbyOwnerId = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyOwnerId");
-            var lobbyName = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyName");
-            var lobbyOwnerName = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyOwnerName");
-
-            if (!string.IsNullOrEmpty(lobbyName))
-            {
-                _lobbyListEntries.Add(new LobbyListEntryData
-                {
-                    LobbyId = lobbyId,
-                    LobbyOwnerId = lobbyOwnerId,
-                    LobbyName = lobbyName,
-                    LobbyOwnerName = lobbyOwnerName,
-                });
-            }
-        }
-        _lobbyListView.RefreshItems();
-    }
-
-    private void OnCreateLobby(LobbyCreated_t arg, bool bIOFailure)
-    {
-        if (arg.m_eResult != EResult.k_EResultOK || bIOFailure)
-        {
-            Debug.Log("Failed to create a lobby.");
-            NetworkManager.Singleton.Shutdown();
-
-            _lobbyListView.RefreshItems();
-            _lobbyNameTextField.SetEnabled(true);
-            _maxPlayersIntField.SetEnabled(true);
-            _friendOnlyToggle.SetEnabled(true);
-            return;
-        }
-
-        Debug.Log("Lobby created.");
-        LobbyManager.Singleton.SetJoinedLobbyId(arg.m_ulSteamIDLobby);
-
-        var lobbyId = new CSteamID(arg.m_ulSteamIDLobby);
-        SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerId", SteamUser.GetSteamID().m_SteamID.ToString());
-        SteamMatchmaking.SetLobbyData(lobbyId, "LobbyName", MyLobbyNameValue);
-        SteamMatchmaking.SetLobbyData(lobbyId, "LobbyOwnerName", SteamFriends.GetPersonaName());
-
-        var lobbyChatManager = Instantiate(PrefabLobbyChatManager);
-        var networkLobbyChatManager = lobbyChatManager.GetComponent<NetworkObject>();
-        networkLobbyChatManager.Spawn(true);
-
-        RefreshLobbyMemberList();
     }
 }
