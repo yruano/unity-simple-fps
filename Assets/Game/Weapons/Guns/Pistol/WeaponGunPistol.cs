@@ -243,9 +243,25 @@ public class WeaponGunPistol : Weapon
         _stateMachine.Init(player, _context);
     }
 
+    public override void ResetWeapon()
+    {
+        _tick = 0;
+
+        _stateMachine.SetCurrentState((uint)WeaponContextGunPistol.StateIndex.Idle);
+        _stateMachine.InputBuffer.Clear();
+        _stateMachine.TickBuffer.Clear();
+
+        _context.CurrentStateIndex = (uint)WeaponContextGunPistol.StateIndex.Idle;
+        _context.AmmoCount = _context.MagazineSize;
+        _context.ShootTimer.Reset();
+    }
+
     private void Update()
     {
         if (!_stateMachine.Player.IsSpawned)
+            return;
+
+        if (_stateMachine.Player.IsDead)
             return;
 
         if (_stateMachine.Player.IsOwner)
@@ -286,6 +302,9 @@ public class WeaponGunPistol : Weapon
 
     private void FixedUpdate()
     {
+        if (_stateMachine.Player.IsDead)
+            return;
+
         if (_stateMachine.Player.IsHost)
         {
             // Process input.
@@ -323,16 +342,8 @@ public class WeaponGunPistol : Weapon
             _stateMachine.TickBuffer.RemoveRange(0, i + 1);
 
             // Check prediction.
-            if (serverTickData.IsEqual(predictedTickData))
+            if (!serverTickData.IsEqual(predictedTickData))
             {
-                // Prediction success.
-                Debug.Log("Prediction success");
-            }
-            else
-            {
-                // Prediction failed.
-                Debug.Log("Prediction failed");
-
                 // Rollback.
                 foreach (var tickData in _stateMachine.TickBuffer)
                 {

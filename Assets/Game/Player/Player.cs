@@ -28,6 +28,8 @@ public class Player : NetworkBehaviour
     public WeaponTickData LatestWeaponTickData;
     public Queue<WeaponInput> RecivedWeaponInputs = new();
 
+    public bool IsDead { get; private set; } = false;
+
     private NetworkVariable<int> _healthMax = new(100);
     [CreateProperty]
     public int HealthMax
@@ -124,7 +126,7 @@ public class Player : NetworkBehaviour
     {
         // TODO: 서버 권한 움직임으로 변경
 
-        if (Health == 0)
+        if (IsDead)
             return;
 
         var inputDir = _inputMove.ReadValue<Vector2>();
@@ -176,7 +178,7 @@ public class Player : NetworkBehaviour
 
         _user.IsDead = false;
         Health = HealthMax;
-        SetPlayerActiveRpc(true);
+        OnPlayerRespawnRpc();
     }
 
     public void CheckDeath()
@@ -187,16 +189,29 @@ public class Player : NetworkBehaviour
         if (Health == 0)
         {
             _user.IsDead = true;
-            SetPlayerActiveRpc(false);
+            OnPlayerDeathRpc();
 
             Invoke(nameof(Respawn), 3.0f);
         }
     }
 
     [Rpc(SendTo.Everyone)]
-    private void SetPlayerActiveRpc(bool value)
+    private void OnPlayerRespawnRpc()
     {
-        SetPlayerActive(value);
+        IsDead = false;
+        SetPlayerActive(true);
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void OnPlayerDeathRpc()
+    {
+        IsDead = true;
+        SetPlayerActive(false);
+
+        if (_weapon)
+        {
+            _weapon.ResetWeapon();
+        }
     }
 
     [Rpc(SendTo.Server)]
