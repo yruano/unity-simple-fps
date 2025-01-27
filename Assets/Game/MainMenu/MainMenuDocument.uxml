@@ -1,11 +1,11 @@
 <engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
-    <Style src="project://database/Assets/MainMenu/MainMenu.uss?fileID=7433441132597879392&amp;guid=49b1565efe3acd84c805dacee3122c15&amp;type=3#MainMenu" />
+    <Style src="project://database/Assets/Game/MainMenu/MainMenu.uss?fileID=7433441132597879392&amp;guid=49b1565efe3acd84c805dacee3122c15&amp;type=3#MainMenu" />
     <engine:VisualElement style="flex-grow: 0;">
         <engine:VisualElement style="flex-grow: 1; align-self: center; max-width: none; max-height: none; width: auto; height: 150px;" />
         <engine:Label text="Simple FPS" style="max-width: none; align-items: auto; font-size: 100px; align-self: center;" />
         <engine:VisualElement style="flex-grow: 1; align-self: center; max-width: none; max-height: none; width: auto; height: 100px;" />
         <engine:Button text="Start Game" name="StartGameButton" parse-escape-sequences="false" class="menu-button" />
-        <engine:Button text="Options" name="OptionsGameButton" parse-escape-sequences="false" class="menu-button" />
+        <engine:Button text="Options" name="OptionsButton" parse-escape-sequences="false" class="menu-button" />
         <engine:Button text="Exit Game" name="ExitGameButton" emoji-fallback-support="true" parse-escape-sequences="false" class="menu-button" />
     </engine:VisualElement>
 </engine:UXML>

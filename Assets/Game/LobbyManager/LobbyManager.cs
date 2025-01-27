@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Steamworks;
 using UnityEngine;
 using Unity.Netcode;
@@ -6,8 +7,9 @@ using Netcode.Transports;
 
 public class GameUser
 {
-    public ulong NetId;
-    public Player Player;
+    public ulong NetId = 0;
+    public bool IsDead = false;
+    public Player Player = null;
 }
 
 public class LobbyManager : MonoBehaviour
@@ -15,7 +17,14 @@ public class LobbyManager : MonoBehaviour
     public static LobbyManager Singleton { get; private set; }
 
     public CSteamID? JoinedLobbyId { get; private set; }
-    public Dictionary<CSteamID, GameUser> Users = new();
+
+    // Key: TransportId
+    public Dictionary<ulong, GameUser> Users = new();
+
+    // Key: ClientId, Value: TransportId
+    public Dictionary<ulong, ulong> UserTransportId = new();
+
+    private Dictionary<ulong, ulong> _clientToTransportId;
 
     private CallResult<LobbyEnter_t> _steamOnJoinLobby;
     private Callback<LobbyChatUpdate_t> _steamOnClientLobbyEvent;
@@ -34,6 +43,8 @@ public class LobbyManager : MonoBehaviour
 
     private void Start()
     {
+        GetClientAndTransportIdMapping();
+
         if (SteamManager.IsInitialized)
         {
             _steamOnJoinLobby = new(SteamOnJoinLobby);
@@ -44,15 +55,16 @@ public class LobbyManager : MonoBehaviour
         NetworkManager.Singleton.OnClientConnectedCallback += (ulong clientId) =>
         {
             Debug.Log($"[NetworkManager] client connected: {clientId}");
-
             if (NetworkManager.Singleton.IsHost)
             {
-                // TODO: SteamNetworkingSocketsTransport 파일 복사해서 connectionMapping public으로 만들기
-
-                if (NetworkManager.Singleton.LocalClientId == clientId)
+                if (clientId == NetworkManager.Singleton.LocalClientId)
                 {
-                    Users.Add(SteamUser.GetSteamID(), new GameUser { NetId = clientId });
+                    _clientToTransportId.Add(clientId, SteamUser.GetSteamID().m_SteamID);
                 }
+
+                var steamId = _clientToTransportId[clientId];
+                UserTransportId.Add(clientId, steamId);
+                Users.Add(steamId, new GameUser { NetId = clientId });
             }
         };
 
@@ -67,11 +79,17 @@ public class LobbyManager : MonoBehaviour
 
         NetworkManager.Singleton.OnConnectionEvent += (NetworkManager _, ConnectionEventData data) =>
         {
-            switch (data.EventType)
+            if (NetworkManager.Singleton.IsHost)
             {
-                case ConnectionEvent.PeerDisconnected:
-                    Debug.Log($"[NetworkManager] PeerDisconnected: {data.ClientId}");
-                    break;
+                switch (data.EventType)
+                {
+                    case ConnectionEvent.PeerDisconnected:
+                        Debug.Log($"[NetworkManager] PeerDisconnected: {data.ClientId}");
+                        var steamId = UserTransportId[data.ClientId];
+                        UserTransportId.Remove(data.ClientId);
+                        Users.Remove(steamId);
+                        break;
+                }
             }
         };
     }
@@ -83,6 +101,35 @@ public class LobbyManager : MonoBehaviour
             return;
         }
         Singleton = null;
+    }
+
+    private void GetClientAndTransportIdMapping()
+    {
+        var bindingAttr = BindingFlags.NonPublic | BindingFlags.Instance;
+        var netConnManagerInstance = typeof(NetworkManager)
+            .GetField("ConnectionManager", bindingAttr)
+            .GetValue(NetworkManager.Singleton);
+
+        var conManType = typeof(NetworkConnectionManager);
+
+        _clientToTransportId = conManType
+            .GetField("ClientIdToTransportIdMap", bindingAttr)
+            .GetValue(netConnManagerInstance) as Dictionary<ulong, ulong>;
+
+        // TransportToClientId = conManType
+        //     .GetField("TransportIdToClientIdMap", bindingAttr)
+        //     .GetValue(netConnManagerInstance) as Dictionary<ulong, ulong>;
+    }
+
+    public GameUser GetUserByClientId(ulong clientId)
+    {
+        var steamId = UserTransportId[clientId];
+        return Users[steamId];
+    }
+
+    public GameUser GetUserBySteamId(ulong steamId)
+    {
+        return Users[steamId];
     }
 
     public void SetJoinedLobbyId(ulong lobbyId)
@@ -153,10 +200,10 @@ public class LobbyManager : MonoBehaviour
 
     private void SteamOnClientLobbyEvent(LobbyChatUpdate_t arg)
     {
-        // Lobby entered.
-        if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
+        if (NetworkManager.Singleton.IsHost)
         {
-            if (NetworkManager.Singleton.IsHost)
+            // On entered.
+            if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
             {
                 Debug.Log($"[Steamworks.NET] Client joined: {arg.m_ulSteamIDUserChanged}");
                 var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(JoinedLobbyId.Value);
@@ -167,6 +214,12 @@ public class LobbyManager : MonoBehaviour
                     Debug.LogWarning($"[Steamworks.NET] Client joined while the server is full: {userName}, {arg.m_ulSteamIDUserChanged}");
                     // Steamworks api has no way to kick user...
                 }
+            }
+
+            // On disconnected.
+            if ((arg.m_rgfChatMemberStateChange & (uint)EChatMemberStateChange.k_EChatMemberStateChangeDisconnected) != 0)
+            {
+                Debug.Log($"[Steamworks.NET] Client disconnected: {arg.m_ulSteamIDUserChanged}");
             }
         }
     }

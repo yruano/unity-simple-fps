@@ -17,7 +17,7 @@ public class MainMenu : MonoBehaviour
         _root = _document.rootVisualElement;
 
         _startGameButton = _root.Q("StartGameButton") as Button;
-        _optionsButton = _root.Q("OptionsGameButton") as Button;
+        _optionsButton = _root.Q("OptionsButton") as Button;
         _exitGameButton = _root.Q("ExitGameButton") as Button;
 
         _startGameButton.RegisterCallback<ClickEvent>(OnClickStartGameButton);

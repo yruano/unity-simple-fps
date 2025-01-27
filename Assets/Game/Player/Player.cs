@@ -13,6 +13,10 @@ public class Player : NetworkBehaviour
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
     [SerializeField] private Weapon PrefabWeaponPistol;
 
+    private GameUser _user;
+
+    private MeshRenderer _meshRenderer;
+    private Collider _collider;
     private Rigidbody _rb;
 
     private InputAction _inputMove;
@@ -23,8 +27,6 @@ public class Player : NetworkBehaviour
     private Weapon _weapon;
     public WeaponTickData LatestWeaponTickData;
     public Queue<WeaponInput> RecivedWeaponInputs = new();
-
-    public bool IsDead { get; private set; } = false;
 
     private NetworkVariable<int> _healthMax = new(100);
     [CreateProperty]
@@ -44,6 +46,8 @@ public class Player : NetworkBehaviour
 
     private void Awake()
     {
+        _meshRenderer = GetComponent<MeshRenderer>();
+        _collider = GetComponent<Collider>();
         _rb = GetComponent<Rigidbody>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
@@ -53,7 +57,8 @@ public class Player : NetworkBehaviour
     {
         if (IsHost)
         {
-            HostInit();
+            _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
+            Health = HealthMax;
         }
 
         _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
@@ -79,10 +84,9 @@ public class Player : NetworkBehaviour
 
     public override void OnDestroy()
     {
-        if (_weapon != null)
-        {
-            Destroy(_weapon);
-        }
+        Destroy(_cameraTarget);
+        Destroy(_cmFirstPersonCamera);
+        Destroy(_weapon);
 
         base.OnDestroy();
     }
@@ -118,6 +122,11 @@ public class Player : NetworkBehaviour
 
     private void Movement()
     {
+        // TODO: 서버 권한 움직임으로 변경
+
+        if (Health == 0)
+            return;
+
         var inputDir = _inputMove.ReadValue<Vector2>();
 
         var targetForwardSpeed = inputDir.y * WalkSpeed;
@@ -142,9 +151,12 @@ public class Player : NetworkBehaviour
         }
     }
 
-    public void HostInit()
+    public void SetPlayerActive(bool value)
     {
-        Health = HealthMax;
+        _meshRenderer.enabled = value;
+        _collider.enabled = value;
+        _rb.detectCollisions = value;
+        _rb.useGravity = value;
     }
 
     public Vector3 GetHeadPosition()
@@ -157,25 +169,34 @@ public class Player : NetworkBehaviour
         return _cmFirstPersonCamera.transform.forward;
     }
 
+    public void Respawn()
+    {
+        if (!_user.IsDead)
+            return;
+
+        _user.IsDead = false;
+        Health = HealthMax;
+        SetPlayerActiveRpc(true);
+    }
+
     public void CheckDeath()
     {
-        if (IsDead)
-        {
+        if (_user.IsDead)
             return;
-        }
 
         if (Health == 0)
         {
-            IsDead = true;
-            OnDeathRpc();
-            GetComponent<NetworkObject>().Despawn();
+            _user.IsDead = true;
+            SetPlayerActiveRpc(false);
+
+            Invoke(nameof(Respawn), 3.0f);
         }
     }
 
-    [Rpc(SendTo.Owner)]
-    private void OnDeathRpc()
+    [Rpc(SendTo.Everyone)]
+    private void SetPlayerActiveRpc(bool value)
     {
-        Destroy(_cameraTarget);
+        SetPlayerActive(value);
     }
 
     [Rpc(SendTo.Server)]
