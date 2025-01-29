@@ -1,66 +1,79 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
+using UnityEngine;
 
-public class GameTimerCallback
+public struct GameTimer
 {
-    public float TriggerTime;
-    public bool Called;
-    public Action<float> Callback;
-}
+    public class Callback
+    {
+        public float TriggerTime;
+        public Action<float> OnCallback;
+        public Action OnCancel;
+    }
 
-public class GameTimer
-{
     public float Duration;
     public float Time;
-    public bool IsEnded;
-    public List<GameTimerCallback> Callbacks = new();
+    public int CallbackIndex;
+    public List<Callback> Callbacks;
+
+    public bool IsEnded => Time >= Duration;
 
     public GameTimer(float duration)
     {
         Duration = duration;
-    }
-
-    public void Tick(float delteTime)
-    {
-        if (!IsEnded)
-        {
-            Time += delteTime;
-
-            if (Time >= Duration)
-            {
-                Time = Duration;
-                IsEnded = true;
-            }
-
-            foreach (var callback in Callbacks)
-            {
-                if (!callback.Called)
-                {
-                    if (callback.TriggerTime <= Time)
-                    {
-                        callback.Called = true;
-                        callback.Callback(Time);
-                    }
-                }
-            }
-        }
+        Time = 0;
+        CallbackIndex = 0;
+        Callbacks = new();
     }
 
     public void Reset()
     {
         Time = 0;
-        IsEnded = false;
+        CallbackIndex = 0;
+    }
 
-        foreach (var callback in Callbacks)
+    public void RollbackTo(float time)
+    {
+        for (var i = Callbacks.Count; i >= 0; --i)
         {
-            callback.Called = false;
+            var callback = Callbacks[i];
+            if (callback.TriggerTime < time)
+                break;
+
+            callback.OnCancel?.Invoke();
         }
     }
 
-    public void RegisterCallback(float triggerTime, Action<float> callback)
+    public Callback AddCallback(float triggerTime, Action<float> onCallback, Action onCancel = null)
     {
-        Callbacks.Add(new GameTimerCallback { TriggerTime = triggerTime, Callback = callback });
+        var callback = new Callback { TriggerTime = triggerTime, OnCallback = onCallback, OnCancel = onCancel };
+        Callbacks.Add(callback);
         Callbacks = Callbacks.OrderBy(t => t.TriggerTime).ToList();
+        return callback;
+    }
+
+    public void RemoveCallback(Callback callback)
+    {
+        Callbacks.Remove(callback);
+    }
+
+    public void Tick(float deltaTime)
+    {
+        if (IsEnded)
+            return;
+
+        Time = Mathf.Min(Time + deltaTime, Duration);
+
+        for (var i = CallbackIndex; i < Callbacks.Count; ++i)
+        {
+            var callback = Callbacks[i];
+            if (callback.TriggerTime > Time)
+                break;
+
+            callback.OnCallback(Time);
+            CallbackIndex = i + 1;
+        }
     }
 }

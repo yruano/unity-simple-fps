@@ -15,24 +15,6 @@ public struct WeaponInput : INetworkSerializeByMemcpy
     public bool InputWeaponReload;
 }
 
-public class WeaponState
-{
-    public WeaponStateMachine StateMachine;
-
-    public virtual void Init(WeaponStateMachine stateMachine)
-    {
-        StateMachine = stateMachine;
-    }
-    public virtual void Rollback(WeaponStateMachine stateMachine) { }
-
-    public virtual bool IsRestart() => true;
-    public virtual bool IsDone() => false;
-
-    public virtual void OnStateEnter() { }
-    public virtual void OnStateExit() { }
-    public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
-}
-
 public enum WeaponTickDataType : ulong
 {
     GunPistol,
@@ -56,6 +38,24 @@ public abstract class WeaponTickData
             && Tick == other.Tick
             && StateIndex == other.StateIndex;
     }
+}
+
+public class WeaponState
+{
+    public WeaponStateMachine StateMachine;
+
+    public virtual void Init(WeaponStateMachine stateMachine)
+    {
+        StateMachine = stateMachine;
+    }
+    public virtual void Rollback(WeaponStateMachine stateMachine, WeaponTickData correctTickData) { }
+
+    public virtual bool IsRestart() => true;
+    public virtual bool IsDone() => false;
+
+    public virtual void OnStateEnter() { }
+    public virtual void OnStateExit() { }
+    public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
 }
 
 // NOTE:
