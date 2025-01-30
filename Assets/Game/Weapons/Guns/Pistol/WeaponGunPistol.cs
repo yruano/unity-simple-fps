@@ -3,22 +3,30 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using Unity.Netcode;
 
-[StructLayout(LayoutKind.Sequential)]
-public class WeaponTickDataGunPistol : WeaponTickData
+public struct WeaponTickDataGunPistol : IWeaponTickData
 {
+    public WeaponTickDataHeader Header;
     public int MagazineSize;
     public int AmmoCount;
     public float ShootTimerDuration;
     public float ShootTimerTime;
     public int ShootTimerCallbackIndex;
 
+    public WeaponTickDataHeader GetHeader()
+    {
+        return Header;
+    }
+
     public static WeaponTickDataGunPistol NewFromReader(ulong type, ulong tick, uint stateIndex, FastBufferReader reader)
     {
         var result = new WeaponTickDataGunPistol
         {
-            Type = type,
-            Tick = tick,
-            StateIndex = stateIndex,
+            Header = new WeaponTickDataHeader
+            {
+                Type = type,
+                Tick = tick,
+                StateIndex = stateIndex,
+            }
         };
         reader.ReadValue(out result.MagazineSize);
         reader.ReadValue(out result.AmmoCount);
@@ -28,7 +36,7 @@ public class WeaponTickDataGunPistol : WeaponTickData
         return result;
     }
 
-    public override byte[] Serialize()
+    public byte[] Serialize()
     {
         var size = Marshal.SizeOf(typeof(WeaponTickDataGunPistol));
         var writer = new FastBufferWriter(size, Unity.Collections.Allocator.Temp);
@@ -40,9 +48,9 @@ public class WeaponTickDataGunPistol : WeaponTickData
         byte[] result;
         using (writer)
         {
-            writer.WriteValue(Type);
-            writer.WriteValue(Tick);
-            writer.WriteValue(StateIndex);
+            writer.WriteValue(Header.Type);
+            writer.WriteValue(Header.Tick);
+            writer.WriteValue(Header.StateIndex);
             writer.WriteValue(MagazineSize);
             writer.WriteValue(AmmoCount);
             writer.WriteValue(ShootTimerDuration);
@@ -52,36 +60,15 @@ public class WeaponTickDataGunPistol : WeaponTickData
         }
         return result;
     }
-
-    public override bool IsEqual(WeaponTickData other)
-    {
-        if (other is WeaponTickDataGunPistol otherGunPistol)
-        {
-            var result = base.IsEqual(other);
-            if (!result) return false;
-
-            result = result && StateIndex == otherGunPistol.StateIndex;
-            result = result && MagazineSize == otherGunPistol.MagazineSize;
-            result = result && AmmoCount == otherGunPistol.AmmoCount;
-            result = result && ShootTimerDuration == otherGunPistol.ShootTimerDuration;
-            result = result && ShootTimerTime == otherGunPistol.ShootTimerTime;
-            result = result && ShootTimerCallbackIndex == otherGunPistol.ShootTimerCallbackIndex;
-            return result;
-        }
-        else
-        {
-            return false;
-        }
-    }
 }
 
-public class WeaponStateGunPistolIdle : WeaponState { }
+public class WeaponStateGunPistolIdle : WeaponState<WeaponTickDataGunPistol> { }
 
-public class WeaponStateGunPistolShoot : WeaponState
+public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
 {
     private WeaponInput _input;
 
-    public override void Init(WeaponStateMachine stateMachine)
+    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
     {
         base.Init(stateMachine);
 
@@ -118,14 +105,15 @@ public class WeaponStateGunPistolShoot : WeaponState
         });
     }
 
-    public override void Rollback(WeaponStateMachine stateMachine, WeaponTickData correctTickData)
+    public override void Rollback<T>(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, T correctTickData)
     {
         var ctx = StateMachine.Context as WeaponContextGunPistol;
-        var correctTickDataGunPistol = correctTickData as WeaponTickDataGunPistol;
-
-        var correctTimerTime = correctTickDataGunPistol.ShootTimerTime;
-        ctx.ShootTimer.RollbackTo(correctTimerTime);
-        // TODO: 이미 실행된 것들도 올바른 시간으로 되돌려야 함.
+        if (correctTickData is WeaponTickDataGunPistol correctTickDataGunPistol)
+        {
+            var correctTimerTime = correctTickDataGunPistol.ShootTimerTime;
+            ctx.ShootTimer.RollbackTo(correctTimerTime);
+            // TODO: 이미 실행된 것들도 올바른 시간으로 되돌려야 함.
+        }
     }
 
     public override bool IsDone()
@@ -149,7 +137,7 @@ public class WeaponStateGunPistolShoot : WeaponState
     }
 }
 
-public class WeaponStateGunPistolReload : WeaponState
+public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
 {
     public override bool IsDone()
     {
@@ -163,7 +151,7 @@ public class WeaponStateGunPistolReload : WeaponState
     }
 }
 
-public class WeaponContextGunPistol : WeaponContext
+public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
 {
     public enum StateIndex
     {
@@ -177,13 +165,13 @@ public class WeaponContextGunPistol : WeaponContext
     public int AmmoCount;
     public GameTimer ShootTimer = new(0.3f);
 
-    public override void Init(WeaponStateMachine stateMachine)
+    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
     {
         base.Init(stateMachine);
 
         AmmoCount = MagazineSize;
 
-        States = new WeaponState[]
+        States = new WeaponState<WeaponTickDataGunPistol>[]
         {
             null,
             new WeaponStateGunPistolIdle(),
@@ -199,13 +187,16 @@ public class WeaponContextGunPistol : WeaponContext
         stateMachine.SetCurrentState((int)StateIndex.Idle);
     }
 
-    public override WeaponTickData GetTickData(ulong tick)
+    public override WeaponTickDataGunPistol GetTickData(ulong tick)
     {
         return new WeaponTickDataGunPistol
         {
-            Type = (ulong)WeaponTickDataType.GunPistol,
-            Tick = tick,
-            StateIndex = CurrentStateIndex,
+            Header = new WeaponTickDataHeader
+            {
+                Type = (ulong)WeaponTickDataType.GunPistol,
+                Tick = tick,
+                StateIndex = CurrentStateIndex,
+            },
             MagazineSize = MagazineSize,
             AmmoCount = AmmoCount,
             ShootTimerDuration = ShootTimer.Duration,
@@ -214,11 +205,11 @@ public class WeaponContextGunPistol : WeaponContext
         };
     }
 
-    public override void ApplyTickData(WeaponTickData tickData)
+    public override void ApplyTickData<T>(T tickData)
     {
         if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
         {
-            CurrentStateIndex = tickDataGunPistol.StateIndex;
+            CurrentStateIndex = tickDataGunPistol.Header.StateIndex;
             MagazineSize = tickDataGunPistol.MagazineSize;
             AmmoCount = tickDataGunPistol.AmmoCount;
             ShootTimer.Duration = tickDataGunPistol.ShootTimerDuration;
@@ -231,7 +222,7 @@ public class WeaponContextGunPistol : WeaponContext
         }
     }
 
-    public override uint GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
+    public override uint GetNextState(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, WeaponInput input)
     {
         var ctx = stateMachine.Context as WeaponContextGunPistol;
 
@@ -271,8 +262,8 @@ public class WeaponContextGunPistol : WeaponContext
 public class WeaponGunPistol : Weapon
 {
     private Player _player;
-    private WeaponStateMachine _stateMachine = new();
     private WeaponContextGunPistol _context = new();
+    private WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
     private ulong _tick = 0;
 
     public override void Init(Player player)
@@ -294,6 +285,18 @@ public class WeaponGunPistol : Weapon
         _context.CurrentStateIndex = (uint)WeaponContextGunPistol.StateIndex.Idle;
         _context.AmmoCount = _context.MagazineSize;
         _context.ShootTimer.Reset();
+    }
+
+    public override void SetLatestTickData<T>(T tickData)
+    {
+        if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
+        {
+            _stateMachine.LatestTickData = tickDataGunPistol;
+        }
+        else
+        {
+            Debug.LogError("SetLatestTickData: Wrong TickData type!");
+        }
     }
 
     private void Update()
@@ -368,12 +371,12 @@ public class WeaponGunPistol : Weapon
 
     private void Reconcile()
     {
-        var serverTickData = _player.LatestWeaponTickData;
-        if (serverTickData is not null)
+        var serverTickDataOpt = _stateMachine.LatestTickData;
+        if (serverTickDataOpt is { } serverTickData)
         {
-            _player.LatestWeaponTickData = null;
+            _stateMachine.LatestTickData = null;
 
-            var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Tick);
+            var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Header.Tick);
             if (i == -1) return;
 
             var predictedTickData = _stateMachine.TickBuffer[i];
@@ -383,12 +386,12 @@ public class WeaponGunPistol : Weapon
             _stateMachine.TickBuffer.RemoveRange(0, i + 1);
 
             // Check prediction.
-            if (!serverTickData.IsEqual(predictedTickData))
+            if (!serverTickData.Equals(predictedTickData))
             {
                 // Rollback.
                 foreach (var tickData in _stateMachine.TickBuffer)
                 {
-                    _stateMachine.Context.States[tickData.StateIndex].Rollback(_stateMachine, serverTickData);
+                    _stateMachine.Context.States[tickData.GetHeader().StateIndex].Rollback(_stateMachine, serverTickData);
                 }
 
                 // Resimulate.

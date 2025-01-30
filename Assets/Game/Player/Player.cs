@@ -25,7 +25,6 @@ public class Player : NetworkBehaviour
     private CinemachineCamera _cmFirstPersonCamera;
 
     private Weapon _weapon;
-    public WeaponTickData LatestWeaponTickData;
     public Queue<WeaponInput> RecivedWeaponInputs = new();
 
     public bool IsDead { get; private set; } = false;
@@ -248,7 +247,7 @@ public class Player : NetworkBehaviour
             switch (type)
             {
                 case (ulong)WeaponTickDataType.GunPistol:
-                    LatestWeaponTickData = WeaponTickDataGunPistol.NewFromReader(type, tick, stateIndex, reader);
+                    _weapon.SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(type, tick, stateIndex, reader));
                     break;
             }
         }

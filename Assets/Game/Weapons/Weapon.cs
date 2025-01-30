@@ -1,7 +1,8 @@
 using UnityEngine;
 
-public class Weapon : MonoBehaviour
+public abstract class Weapon : MonoBehaviour
 {
-    public virtual void Init(Player player) { }
-    public virtual void ResetWeapon() { }
+    public abstract void Init(Player player);
+    public abstract void ResetWeapon();
+    public abstract void SetLatestTickData<T>(T tickData) where T : struct, IWeaponTickData;
 }

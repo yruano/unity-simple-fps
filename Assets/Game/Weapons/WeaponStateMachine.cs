@@ -20,35 +20,29 @@ public enum WeaponTickDataType : ulong
     GunPistol,
 }
 
-[StructLayout(LayoutKind.Sequential)]
-public abstract class WeaponTickData
+public interface IWeaponTickData
+{
+    public WeaponTickDataHeader GetHeader();
+}
+
+public struct WeaponTickDataHeader
 {
     public ulong Type;
     public ulong Tick;
     public uint StateIndex;
-
-    public abstract byte[] Serialize();
-
-    public virtual bool IsEqual(WeaponTickData other)
-    {
-        if (other == null)
-            return false;
-
-        return Type == other.Type
-            && Tick == other.Tick
-            && StateIndex == other.StateIndex;
-    }
 }
 
-public class WeaponState
+public class WeaponState<TickData> where TickData : struct, IWeaponTickData
 {
-    public WeaponStateMachine StateMachine;
+    public WeaponStateMachine<TickData> StateMachine;
 
-    public virtual void Init(WeaponStateMachine stateMachine)
+    public virtual void Init(WeaponStateMachine<TickData> stateMachine)
     {
         StateMachine = stateMachine;
     }
-    public virtual void Rollback(WeaponStateMachine stateMachine, WeaponTickData correctTickData) { }
+    public virtual void Rollback<T>(WeaponStateMachine<TickData> stateMachine, T correctTickData)
+    where T : struct, IWeaponTickData
+    { }
 
     public virtual bool IsRestart() => true;
     public virtual bool IsDone() => false;
@@ -61,9 +55,9 @@ public class WeaponState
 // NOTE:
 // WeaponState는 Context에 있는 정보만 읽고 써야한다.
 // 그렇지 않으면 Rollback을 제대로 할 수 없다.
-public class WeaponContext
+public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTickData
 {
-    public WeaponState[] States;
+    public WeaponState<TickData>[] States;
     public uint CurrentStateIndex;
     public ulong CommonFlags;
 
@@ -71,7 +65,7 @@ public class WeaponContext
     public InputAction InputWeaponAim;
     public InputAction InputWeaponReload;
 
-    public virtual void Init(WeaponStateMachine stateMachine)
+    public virtual void Init(WeaponStateMachine<TickData> stateMachine)
     {
         if (stateMachine.Player.IsOwner)
         {
@@ -81,34 +75,27 @@ public class WeaponContext
         }
     }
 
-    public WeaponState GetState<T>(T index) where T : Enum
+    public abstract TickData GetTickData(ulong tick);
+    public abstract void ApplyTickData<T>(T tickData);
+
+    public WeaponState<TickData> GetState<T>(T index) where T : Enum
     {
         return States[(int)(object)index];
     }
-
-    public virtual WeaponTickData GetTickData(ulong tick)
-    {
-        return null;
-    }
-
-    public virtual void ApplyTickData(WeaponTickData tickData) { }
-
-    public virtual uint GetNextState(WeaponStateMachine stateMachine, WeaponInput input)
-    {
-        return 0;
-    }
+    public abstract uint GetNextState(WeaponStateMachine<TickData> stateMachine, WeaponInput input);
 }
 
-public class WeaponStateMachine
+public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickData
 {
     public Player Player;
-    public WeaponContext Context;
-    public WeaponState CurrentState;
+    public WeaponContext<TickData> Context;
+    public WeaponState<TickData> CurrentState;
 
+    public TickData? LatestTickData = null;
     public List<WeaponInput> InputBuffer = new();
-    public List<WeaponTickData> TickBuffer = new();
+    public List<TickData> TickBuffer = new();
 
-    public void Init(Player player, WeaponContext context)
+    public void Init(Player player, WeaponContext<TickData> context)
     {
         Player = player;
         Context = context;
@@ -121,7 +108,7 @@ public class WeaponStateMachine
         CurrentState = Context.States[stateIndex];
     }
 
-    public void PushTickData(WeaponInput input, WeaponTickData tickData)
+    public void PushTickData(WeaponInput input, TickData tickData)
     {
         InputBuffer.Add(input);
         if (InputBuffer.Count >= 30)
@@ -134,7 +121,7 @@ public class WeaponStateMachine
 
     public int GetTickDataIndexFromBuffer(ulong tick)
     {
-        return TickBuffer.FindIndex(item => item.Tick == tick);
+        return TickBuffer.FindIndex(item => item.GetHeader().Tick == tick);
     }
 
     public virtual void OnUpdate(WeaponInput input, float deltaTime)
