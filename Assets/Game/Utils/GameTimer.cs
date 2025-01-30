@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
+using Unity.Netcode;
 
-public struct GameTimer
+public struct GameTimer : INetworkSerializable
 {
     public class Callback
     {
@@ -28,6 +28,20 @@ public struct GameTimer
         Callbacks = new();
     }
 
+    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+    {
+        serializer.SerializeValue(ref Duration);
+        serializer.SerializeValue(ref Time);
+        serializer.SerializeValue(ref CallbackIndex);
+    }
+
+    public void CopyExceptCallbacks(GameTimer other)
+    {
+        Duration = other.Duration;
+        Time = other.Time;
+        CallbackIndex = other.CallbackIndex;
+    }
+
     public void Reset()
     {
         Time = 0;
@@ -36,7 +50,7 @@ public struct GameTimer
 
     public void RollbackTo(float time)
     {
-        for (var i = Callbacks.Count; i >= 0; --i)
+        for (var i = Callbacks.Count - 1; i >= 0; --i)
         {
             var callback = Callbacks[i];
             if (callback.TriggerTime < time)

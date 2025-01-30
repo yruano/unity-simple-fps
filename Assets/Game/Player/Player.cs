@@ -241,13 +241,11 @@ public class Player : NetworkBehaviour
 
         using (reader)
         {
-            reader.ReadValue(out ulong type);
-            reader.ReadValue(out ulong tick);
-            reader.ReadValue(out uint stateIndex);
-            switch (type)
+            reader.ReadValue(out WeaponTickDataHeader header);
+            switch (header.Type)
             {
                 case (ulong)WeaponTickDataType.GunPistol:
-                    _weapon.SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(type, tick, stateIndex, reader));
+                    _weapon.SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(header, reader));
                     break;
             }
         }

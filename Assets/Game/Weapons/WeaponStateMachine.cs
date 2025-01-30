@@ -25,7 +25,7 @@ public interface IWeaponTickData
     public WeaponTickDataHeader GetHeader();
 }
 
-public struct WeaponTickDataHeader
+public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 {
     public ulong Type;
     public ulong Tick;

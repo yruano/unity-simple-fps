@@ -8,31 +8,19 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
     public WeaponTickDataHeader Header;
     public int MagazineSize;
     public int AmmoCount;
-    public float ShootTimerDuration;
-    public float ShootTimerTime;
-    public int ShootTimerCallbackIndex;
+    public GameTimer ShootTimer;
 
     public WeaponTickDataHeader GetHeader()
     {
         return Header;
     }
 
-    public static WeaponTickDataGunPistol NewFromReader(ulong type, ulong tick, uint stateIndex, FastBufferReader reader)
+    public static WeaponTickDataGunPistol NewFromReader(WeaponTickDataHeader header, FastBufferReader reader)
     {
-        var result = new WeaponTickDataGunPistol
-        {
-            Header = new WeaponTickDataHeader
-            {
-                Type = type,
-                Tick = tick,
-                StateIndex = stateIndex,
-            }
-        };
+        var result = new WeaponTickDataGunPistol { Header = header };
         reader.ReadValue(out result.MagazineSize);
         reader.ReadValue(out result.AmmoCount);
-        reader.ReadValue(out result.ShootTimerDuration);
-        reader.ReadValue(out result.ShootTimerTime);
-        reader.ReadValue(out result.ShootTimerCallbackIndex);
+        reader.ReadValue(out result.ShootTimer);
         return result;
     }
 
@@ -48,14 +36,10 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
         byte[] result;
         using (writer)
         {
-            writer.WriteValue(Header.Type);
-            writer.WriteValue(Header.Tick);
-            writer.WriteValue(Header.StateIndex);
+            writer.WriteValue(Header);
             writer.WriteValue(MagazineSize);
             writer.WriteValue(AmmoCount);
-            writer.WriteValue(ShootTimerDuration);
-            writer.WriteValue(ShootTimerTime);
-            writer.WriteValue(ShootTimerCallbackIndex);
+            writer.WriteValue(ShootTimer);
             result = writer.ToArray();
         }
         return result;
@@ -110,7 +94,7 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
         var ctx = StateMachine.Context as WeaponContextGunPistol;
         if (correctTickData is WeaponTickDataGunPistol correctTickDataGunPistol)
         {
-            var correctTimerTime = correctTickDataGunPistol.ShootTimerTime;
+            var correctTimerTime = correctTickDataGunPistol.ShootTimer.Time;
             ctx.ShootTimer.RollbackTo(correctTimerTime);
             // TODO: 이미 실행된 것들도 올바른 시간으로 되돌려야 함.
         }
@@ -199,9 +183,7 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
             },
             MagazineSize = MagazineSize,
             AmmoCount = AmmoCount,
-            ShootTimerDuration = ShootTimer.Duration,
-            ShootTimerTime = ShootTimer.Time,
-            ShootTimerCallbackIndex = ShootTimer.CallbackIndex,
+            ShootTimer = ShootTimer,
         };
     }
 
@@ -212,9 +194,7 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
             CurrentStateIndex = tickDataGunPistol.Header.StateIndex;
             MagazineSize = tickDataGunPistol.MagazineSize;
             AmmoCount = tickDataGunPistol.AmmoCount;
-            ShootTimer.Duration = tickDataGunPistol.ShootTimerDuration;
-            ShootTimer.Time = tickDataGunPistol.ShootTimerTime;
-            ShootTimer.CallbackIndex = tickDataGunPistol.ShootTimerCallbackIndex;
+            ShootTimer.CopyExceptCallbacks(tickDataGunPistol.ShootTimer);
         }
         else
         {
