@@ -241,10 +241,8 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
 
 public class WeaponGunPistol : Weapon
 {
-    private Player _player;
     private WeaponContextGunPistol _context = new();
     private WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
-    private ulong _tick = 0;
 
     public override void Init(Player player)
     {
