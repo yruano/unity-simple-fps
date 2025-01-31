@@ -1,6 +1,6 @@
-using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Unity.Netcode;
 
 public class InGameEscapeMenu : MonoBehaviour
 {

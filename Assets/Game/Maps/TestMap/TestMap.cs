@@ -27,7 +27,7 @@ public class TestMap : MapBase
         user.Player = player.GetComponent<Player>();
 
         var networkPlayer = player.GetComponent<NetworkObject>();
-        networkPlayer.transform.position = new(0, 1.5f, 0);
+        networkPlayer.transform.position = new(0, 3.0f, 0);
         networkPlayer.SpawnWithOwnership(rpcParams.Receive.SenderClientId);
     }
 }

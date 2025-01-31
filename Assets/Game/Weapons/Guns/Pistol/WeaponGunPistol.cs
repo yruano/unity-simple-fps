@@ -181,7 +181,7 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
             // Hit check.
             if (NetworkManager.Singleton.IsHost)
             {
-                var rayPos = StateMachine.Player.GetHeadPosition();
+                var rayPos = StateMachine.Player.GetHeadPos();
                 var rayDir = _input.InputCameraDir;
                 var rayDist = 100f;
 

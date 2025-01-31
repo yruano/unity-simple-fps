@@ -5,6 +5,33 @@ using UnityEngine.InputSystem;
 using Unity.Properties;
 using Unity.Cinemachine;
 using Unity.Netcode;
+using Unity.Netcode.Components;
+
+public struct PlayerInput : INetworkSerializable
+{
+    public ulong Tick;
+    public float DeltaTime;
+    public Vector2 InputWalkDir;
+
+    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+    {
+        serializer.SerializeValue(ref Tick);
+        serializer.SerializeValue(ref DeltaTime);
+        serializer.SerializeValue(ref InputWalkDir);
+    }
+}
+
+public struct PlayerTickData : INetworkSerializable
+{
+    public ulong Tick;
+    public Vector3 Position;
+
+    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+    {
+        serializer.SerializeValue(ref Tick);
+        serializer.SerializeValue(ref Position);
+    }
+}
 
 public class Player : NetworkBehaviour
 {
@@ -16,7 +43,8 @@ public class Player : NetworkBehaviour
 
     private GameObject _visual;
     private Collider _collider;
-    private Rigidbody _rb;
+    private AnticipatedNetworkTransform _netTransform;
+    private CharacterController _characterController;
 
     private InputAction _inputMove;
 
@@ -44,11 +72,19 @@ public class Player : NetworkBehaviour
         set => _health.Value = Mathf.Clamp(value, 0, HealthMax);
     }
 
+    private ulong _tick = 0;
+    public List<PlayerInput> InputBuffer = new();
+    public List<PlayerTickData> TickBuffer = new();
+    public PlayerTickData? LatestTickData = null;
+    public Queue<PlayerInput> RecivedPlayerInputs = new();
+
     private void Awake()
     {
         _visual = transform.GetChild(0).gameObject;
         _collider = GetComponent<Collider>();
-        _rb = GetComponent<Rigidbody>();
+        _netTransform = GetComponent<AnticipatedNetworkTransform>();
+        _netTransform.Interpolate = true;
+        _characterController = GetComponent<CharacterController>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
     }
@@ -61,22 +97,26 @@ public class Player : NetworkBehaviour
             Health = HealthMax;
         }
 
+        // Setup camera target.
         _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
         _cameraTarget.Target = transform;
         _cameraTarget.Offset = Vector3.up * 0.5f;
         _cameraTarget.MoveToTarget();
 
+        // Setup weapon.
         _weapon = Instantiate(PrefabWeaponPistol);
         _weapon.Init(this);
 
         if (IsOwner)
         {
+            // Setup camera.
             _cmFirstPersonCamera = Instantiate(PrefabCmFirstPersonCamera);
             _cmFirstPersonCamera.Follow = _cameraTarget.transform;
             _cmFirstPersonCamera.Priority = 1;
 
+            // Setup HUD.
             var inGameHud = FindFirstObjectByType<InGameHud>();
-            inGameHud.InitPlayer(this);
+            inGameHud.SetTargetPlayer(this);
         }
 
         base.OnNetworkSpawn();
@@ -95,8 +135,35 @@ public class Player : NetworkBehaviour
     {
         if (IsOwner)
         {
+            _tick += 1;
+
             CameraLook();
-            Movement();
+
+            var playerInput = new PlayerInput
+            {
+                Tick = _tick,
+                DeltaTime = Time.deltaTime,
+                InputWalkDir = _inputMove.ReadValue<Vector2>(),
+            };
+
+            if (IsHost)
+            {
+                OnUpdate(playerInput, Time.deltaTime);
+            }
+            else
+            {
+                // Send input.
+                SendPlayerInputToServerRpc(playerInput);
+
+                // Client-side prediction.
+                OnUpdate(playerInput, Time.deltaTime);
+
+                // Store tick data.
+                PushTickData(playerInput, GetTickData(_tick));
+
+                // Reconclie.
+                Reconcile();
+            }
         }
 
         if (IsHost)
@@ -116,57 +183,106 @@ public class Player : NetworkBehaviour
         }
     }
 
-    private void CameraLook()
+    public Vector3 GetHeadPos()
     {
-        var cameraRotation = _cmFirstPersonCamera.transform.eulerAngles;
-        var rotation = transform.eulerAngles;
-        rotation.y = cameraRotation.y;
-        transform.eulerAngles = rotation;
+        return transform.position + _cameraTarget.Offset;
     }
 
-    private void Movement()
+    public Vector3 GetCameraDir()
     {
-        // TODO: 서버 권한 움직임으로 변경
+        return _cmFirstPersonCamera.transform.forward;
+    }
 
-        if (IsDead)
-            return;
+    public PlayerTickData GetTickData(ulong tick)
+    {
+        return new PlayerTickData
+        {
+            Tick = tick,
+            Position = transform.position,
+        };
+    }
 
-        var inputDir = _inputMove.ReadValue<Vector2>();
+    public void ApplyTickData(PlayerTickData tickData)
+    {
+        transform.position = tickData.Position;
+    }
 
-        var targetForwardSpeed = inputDir.y * WalkSpeed;
-        var targetRightSpeed = inputDir.x * WalkSpeed;
-        var velocity = _rb.linearVelocity;
+    public void PushTickData(PlayerInput input, PlayerTickData tickData)
+    {
+        InputBuffer.Add(input);
+        if (InputBuffer.Count >= 30)
+            InputBuffer.RemoveAt(0);
 
-        var forwardSpeed = Vector3.Dot(transform.forward, velocity);
-        var rightSpeed = Vector3.Dot(transform.right, velocity);
-
-        Vector3 acceleration = Vector3.zero;
-
-        if (Mathf.Abs(targetForwardSpeed) > Mathf.Abs(forwardSpeed))
-            acceleration += transform.forward * (targetForwardSpeed - forwardSpeed);
-
-        if (Mathf.Abs(targetRightSpeed) > Mathf.Abs(rightSpeed))
-            acceleration += transform.right * (targetRightSpeed - rightSpeed);
-
-        _rb.AddForce(acceleration, ForceMode.VelocityChange);
+        TickBuffer.Add(tickData);
+        if (TickBuffer.Count >= 30)
+            TickBuffer.RemoveAt(0);
     }
 
     public void SetPlayerActive(bool value)
     {
         _visual.SetActive(value);
         _collider.enabled = value;
-        _rb.detectCollisions = value;
-        _rb.useGravity = value;
     }
 
-    public Vector3 GetHeadPosition()
+    private void CameraLook()
     {
-        return _cameraTarget.Target.position + _cameraTarget.Offset;
+        var cameraRotation = _cmFirstPersonCamera.transform.eulerAngles;
+        var rotation = transform.eulerAngles;
+        rotation.y = cameraRotation.y;
+        transform.eulerAngles = rotation;
+
+        SendPlayerRotationRpc(cameraRotation.y);
     }
 
-    public Vector3 GetCameraDir()
+    private void Movement(Vector2 inputWalkDir, float deltaTime)
     {
-        return _cmFirstPersonCamera.transform.forward;
+        if (IsDead)
+            return;
+
+        var forwardSpeed = inputWalkDir.y * WalkSpeed * deltaTime;
+        var rightSpeed = inputWalkDir.x * WalkSpeed * deltaTime;
+        var gravity = _characterController.isGrounded ? 0 : ((_characterController.velocity.y + -10f * deltaTime) * deltaTime);
+
+        _characterController.Move(
+            (transform.forward * forwardSpeed) +
+            (transform.right * rightSpeed) +
+            (transform.up * gravity));
+    }
+
+    private void OnUpdate(PlayerInput input, float deltaTime)
+    {
+        Movement(input.InputWalkDir, deltaTime);
+    }
+
+    private void Reconcile()
+    {
+        var serverTickDataOpt = LatestTickData;
+        if (serverTickDataOpt is { } serverTickData)
+        {
+            LatestTickData = null;
+
+            var i = TickBuffer.FindIndex(item => item.Tick == serverTickData.Tick);
+            if (i == -1) return;
+
+            var predictedTickData = TickBuffer[i];
+
+            // Remove old data.
+            InputBuffer.RemoveRange(0, i + 1);
+            TickBuffer.RemoveRange(0, i + 1);
+
+            // Check prediction.
+            if (!serverTickData.Equals(predictedTickData))
+            {
+                // Resimulate.
+                ApplyTickData(serverTickData);
+                for (var j = 0; j < InputBuffer.Count; ++j)
+                {
+                    var input = InputBuffer[j];
+                    OnUpdate(input, input.DeltaTime);
+                    TickBuffer[j] = GetTickData(input.Tick);
+                }
+            }
+        }
     }
 
     public void Respawn()
@@ -176,7 +292,7 @@ public class Player : NetworkBehaviour
 
         _user.IsDead = false;
         Health = HealthMax;
-        OnPlayerRespawnRpc();
+        PlayerRespawnRpc();
     }
 
     public void CheckDeath()
@@ -187,21 +303,21 @@ public class Player : NetworkBehaviour
         if (Health == 0)
         {
             _user.IsDead = true;
-            OnPlayerDeathRpc();
+            PlayerDeathRpc();
 
             Invoke(nameof(Respawn), 3.0f);
         }
     }
 
     [Rpc(SendTo.Everyone)]
-    private void OnPlayerRespawnRpc()
+    private void PlayerRespawnRpc()
     {
         IsDead = false;
         SetPlayerActive(true);
     }
 
     [Rpc(SendTo.Everyone)]
-    private void OnPlayerDeathRpc()
+    private void PlayerDeathRpc()
     {
         IsDead = true;
         SetPlayerActive(false);
@@ -210,6 +326,20 @@ public class Player : NetworkBehaviour
         {
             _weapon.ResetWeapon();
         }
+    }
+
+    [Rpc(SendTo.NotOwner)]
+    private void SendPlayerRotationRpc(float rotationY)
+    {
+        var rotation = transform.eulerAngles;
+        rotation.y = rotationY;
+        transform.eulerAngles = rotation;
+    }
+
+    [Rpc(SendTo.Server)]
+    public void SendPlayerInputToServerRpc(PlayerInput input)
+    {
+        RecivedPlayerInputs.Enqueue(input);
     }
 
     [Rpc(SendTo.Server)]
@@ -230,9 +360,9 @@ public class Player : NetworkBehaviour
         using (reader)
         {
             reader.ReadValue(out WeaponTickDataHeader header);
-            switch (header.Type)
+            switch ((WeaponTickDataType)header.Type)
             {
-                case (ulong)WeaponTickDataType.GunPistol:
+                case WeaponTickDataType.GunPistol:
                     _weapon.SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(header, reader));
                     break;
             }
