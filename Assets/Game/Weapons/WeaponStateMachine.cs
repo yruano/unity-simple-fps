@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -32,29 +31,6 @@ public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
     public uint StateIndex;
 }
 
-public class WeaponState<TickData> where TickData : struct, IWeaponTickData
-{
-    public WeaponStateMachine<TickData> StateMachine;
-
-    public virtual void Init(WeaponStateMachine<TickData> stateMachine)
-    {
-        StateMachine = stateMachine;
-    }
-    public virtual void Rollback<T>(WeaponStateMachine<TickData> stateMachine, T correctTickData)
-    where T : struct, IWeaponTickData
-    { }
-
-    public virtual bool IsRestart() => true;
-    public virtual bool IsDone() => false;
-
-    public virtual void OnStateEnter() { }
-    public virtual void OnStateExit() { }
-    public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
-}
-
-// NOTE:
-// WeaponState는 Context에 있는 정보만 읽고 써야한다.
-// 그렇지 않으면 Rollback을 제대로 할 수 없다.
 public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTickData
 {
     public WeaponState<TickData>[] States;
@@ -83,6 +59,30 @@ public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTi
         return States[(int)(object)index];
     }
     public abstract uint GetNextState(WeaponStateMachine<TickData> stateMachine, WeaponInput input);
+}
+
+// NOTE:
+// WeaponState는 Context에 있는 정보만 읽고 써야한다.
+// 그렇지 않으면 Rollback이 제대로 되지 않는다.
+public class WeaponState<TickData> where TickData : struct, IWeaponTickData
+{
+    public WeaponStateMachine<TickData> StateMachine;
+
+    public virtual void Init(WeaponStateMachine<TickData> stateMachine)
+    {
+        StateMachine = stateMachine;
+    }
+
+    public virtual void Rollback<T>(WeaponStateMachine<TickData> stateMachine, T correctTickData)
+    where T : struct, IWeaponTickData
+    { }
+
+    public virtual bool IsRestart() => true;
+    public virtual bool IsDone() => false;
+
+    public virtual void OnStateEnter() { }
+    public virtual void OnStateExit() { }
+    public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
 }
 
 public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickData

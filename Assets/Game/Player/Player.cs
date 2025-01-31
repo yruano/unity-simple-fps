@@ -9,13 +9,12 @@ using Unity.Netcode;
 public class Player : NetworkBehaviour
 {
     [SerializeField] private float WalkSpeed = 4.0f;
-
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
     [SerializeField] private Weapon PrefabWeaponPistol;
 
     private GameUser _user;
 
-    private MeshRenderer _meshRenderer;
+    private GameObject _visual;
     private Collider _collider;
     private Rigidbody _rb;
 
@@ -47,7 +46,7 @@ public class Player : NetworkBehaviour
 
     private void Awake()
     {
-        _meshRenderer = GetComponent<MeshRenderer>();
+        _visual = transform.GetChild(0).gameObject;
         _collider = GetComponent<Collider>();
         _rb = GetComponent<Rigidbody>();
 
@@ -97,19 +96,12 @@ public class Player : NetworkBehaviour
         if (IsOwner)
         {
             CameraLook();
+            Movement();
         }
 
         if (IsHost)
         {
             CheckDeath();
-        }
-    }
-
-    private void FixedUpdate()
-    {
-        if (IsOwner)
-        {
-            Movement();
         }
     }
 
@@ -148,24 +140,20 @@ public class Player : NetworkBehaviour
         var forwardSpeed = Vector3.Dot(transform.forward, velocity);
         var rightSpeed = Vector3.Dot(transform.right, velocity);
 
-        // TODO: Check for _rb.GetAccumulatedForce()
+        Vector3 acceleration = Vector3.zero;
 
         if (Mathf.Abs(targetForwardSpeed) > Mathf.Abs(forwardSpeed))
-        {
-            var addSpeed = (targetForwardSpeed - forwardSpeed) / Time.fixedDeltaTime;
-            _rb.AddForce(transform.forward * addSpeed, ForceMode.Acceleration);
-        }
+            acceleration += transform.forward * (targetForwardSpeed - forwardSpeed);
 
         if (Mathf.Abs(targetRightSpeed) > Mathf.Abs(rightSpeed))
-        {
-            var addSpeed = (targetRightSpeed - rightSpeed) / Time.fixedDeltaTime;
-            _rb.AddForce(transform.right * addSpeed, ForceMode.Acceleration);
-        }
+            acceleration += transform.right * (targetRightSpeed - rightSpeed);
+
+        _rb.AddForce(acceleration, ForceMode.VelocityChange);
     }
 
     public void SetPlayerActive(bool value)
     {
-        _meshRenderer.enabled = value;
+        _visual.SetActive(value);
         _collider.enabled = value;
         _rb.detectCollisions = value;
         _rb.useGravity = value;

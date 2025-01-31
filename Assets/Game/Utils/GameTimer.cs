@@ -9,7 +9,7 @@ public struct GameTimer : INetworkSerializable
     public class Callback
     {
         public float TriggerTime;
-        public Action<float> OnCallback;
+        public Action OnCallback;
         public Action OnCancel;
     }
 
@@ -35,7 +35,7 @@ public struct GameTimer : INetworkSerializable
         serializer.SerializeValue(ref CallbackIndex);
     }
 
-    public void CopyExceptCallbacks(GameTimer other)
+    public void CopyWithoutCallbacks(GameTimer other)
     {
         Duration = other.Duration;
         Time = other.Time;
@@ -60,7 +60,7 @@ public struct GameTimer : INetworkSerializable
         }
     }
 
-    public Callback AddCallback(float triggerTime, Action<float> onCallback, Action onCancel = null)
+    public Callback AddCallback(float triggerTime, Action onCallback, Action onCancel = null)
     {
         var callback = new Callback { TriggerTime = triggerTime, OnCallback = onCallback, OnCancel = onCancel };
         Callbacks.Add(callback);
@@ -86,7 +86,7 @@ public struct GameTimer : INetworkSerializable
             if (callback.TriggerTime > Time)
                 break;
 
-            callback.OnCallback(Time);
+            callback.OnCallback();
             CallbackIndex = i + 1;
         }
     }

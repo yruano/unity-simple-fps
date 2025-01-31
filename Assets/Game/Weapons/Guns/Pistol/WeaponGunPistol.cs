@@ -9,6 +9,7 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
     public int MagazineSize;
     public int AmmoCount;
     public GameTimer ShootTimer;
+    public GameTimer ReloadTimer;
 
     public WeaponTickDataHeader GetHeader()
     {
@@ -21,6 +22,7 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
         reader.ReadValue(out result.MagazineSize);
         reader.ReadValue(out result.AmmoCount);
         reader.ReadValue(out result.ShootTimer);
+        reader.ReadValue(out result.ReloadTimer);
         return result;
     }
 
@@ -40,98 +42,10 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
             writer.WriteValue(MagazineSize);
             writer.WriteValue(AmmoCount);
             writer.WriteValue(ShootTimer);
+            writer.WriteValue(ReloadTimer);
             result = writer.ToArray();
         }
         return result;
-    }
-}
-
-public class WeaponStateGunPistolIdle : WeaponState<WeaponTickDataGunPistol> { }
-
-public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
-{
-    private WeaponInput _input;
-
-    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
-    {
-        base.Init(stateMachine);
-
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-
-        ctx.ShootTimer.AddCallback(0, (_) =>
-        {
-            if (ctx.AmmoCount == 0)
-                return;
-
-            ctx.AmmoCount -= 1;
-
-            // 이펙트 및 애니메이션 실행 (클라 예측)
-
-            // Hit check.
-            if (NetworkManager.Singleton.IsHost)
-            {
-                var rayPos = StateMachine.Player.GetHeadPosition();
-                var rayDir = _input.InputCameraDir;
-                var rayDist = 100f;
-
-                Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
-
-                if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
-                {
-                    var collider = rayHitInfo.collider;
-                    if (collider != StateMachine.Player && collider.CompareTag("Player"))
-                    {
-                        var player = collider.GetComponent<Player>();
-                        player.Health -= 20;
-                    }
-                }
-            }
-        });
-    }
-
-    public override void Rollback<T>(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, T correctTickData)
-    {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-        if (correctTickData is WeaponTickDataGunPistol correctTickDataGunPistol)
-        {
-            var correctTimerTime = correctTickDataGunPistol.ShootTimer.Time;
-            ctx.ShootTimer.RollbackTo(correctTimerTime);
-            // TODO: 이미 실행된 것들도 올바른 시간으로 되돌려야 함.
-        }
-    }
-
-    public override bool IsDone()
-    {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-        return ctx.ShootTimer.IsEnded;
-    }
-
-    public override void OnStateExit()
-    {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-        ctx.ShootTimer.Reset();
-    }
-
-    public override void OnStateUpdate(WeaponInput input, float deltaTime)
-    {
-        _input = input;
-
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-        ctx.ShootTimer.Tick(deltaTime);
-    }
-}
-
-public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
-{
-    public override bool IsDone()
-    {
-        return true;
-    }
-
-    public override void OnStateEnter()
-    {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-        ctx.AmmoCount = ctx.MagazineSize;
     }
 }
 
@@ -148,6 +62,7 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
     public int MagazineSize = 7;
     public int AmmoCount;
     public GameTimer ShootTimer = new(0.3f);
+    public GameTimer ReloadTimer = new(1.0f);
 
     public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
     {
@@ -184,6 +99,7 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
             MagazineSize = MagazineSize,
             AmmoCount = AmmoCount,
             ShootTimer = ShootTimer,
+            ReloadTimer = ReloadTimer,
         };
     }
 
@@ -194,7 +110,8 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
             CurrentStateIndex = tickDataGunPistol.Header.StateIndex;
             MagazineSize = tickDataGunPistol.MagazineSize;
             AmmoCount = tickDataGunPistol.AmmoCount;
-            ShootTimer.CopyExceptCallbacks(tickDataGunPistol.ShootTimer);
+            ShootTimer.CopyWithoutCallbacks(tickDataGunPistol.ShootTimer);
+            ReloadTimer.CopyWithoutCallbacks(tickDataGunPistol.ReloadTimer);
         }
         else
         {
@@ -239,10 +156,126 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
     }
 }
 
+public class WeaponStateGunPistolIdle : WeaponState<WeaponTickDataGunPistol> { }
+
+public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
+{
+    private WeaponInput _input;
+    private int _damage = 20;
+
+    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
+    {
+        base.Init(stateMachine);
+
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+
+        ctx.ShootTimer.AddCallback(0, () =>
+        {
+            if (ctx.AmmoCount == 0)
+                return;
+
+            ctx.AmmoCount -= 1;
+
+            // 이펙트 및 애니메이션 실행 (클라 예측)
+
+            // Hit check.
+            if (NetworkManager.Singleton.IsHost)
+            {
+                var rayPos = StateMachine.Player.GetHeadPosition();
+                var rayDir = _input.InputCameraDir;
+                var rayDist = 100f;
+
+                Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
+
+                if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
+                {
+                    var collider = rayHitInfo.collider;
+                    if (collider != StateMachine.Player && collider.CompareTag("Player"))
+                    {
+                        var player = collider.GetComponent<Player>();
+                        player.Health -= _damage;
+                    }
+                }
+            }
+        });
+    }
+
+    public override void Rollback<T>(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, T correctTickData)
+    {
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        if (correctTickData is WeaponTickDataGunPistol correctTickDataGunPistol)
+        {
+            var correctTimerTime = correctTickDataGunPistol.ShootTimer.Time;
+            ctx.ShootTimer.RollbackTo(correctTimerTime);
+            // TODO: 이미 실행된 것들도 올바른 시간으로 되돌려야 함.
+        }
+    }
+
+    public override bool IsDone()
+    {
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        return ctx.ShootTimer.IsEnded;
+    }
+
+    public override void OnStateExit()
+    {
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        ctx.ShootTimer.Reset();
+    }
+
+    public override void OnStateUpdate(WeaponInput input, float deltaTime)
+    {
+        _input = input;
+
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        ctx.ShootTimer.Tick(deltaTime);
+    }
+}
+
+public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
+{
+    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
+    {
+        base.Init(stateMachine);
+
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+
+        ctx.ReloadTimer.AddCallback(ctx.ReloadTimer.Duration - 0.2f, () =>
+        {
+            Debug.Log("reload");
+            ctx.AmmoCount = ctx.MagazineSize;
+        });
+    }
+
+    public override bool IsDone()
+    {
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        return ctx.ReloadTimer.IsEnded;
+    }
+
+    public override void OnStateEnter()
+    {
+        Debug.Log("reload start");
+    }
+
+    public override void OnStateExit()
+    {
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        ctx.ReloadTimer.Reset();
+        Debug.Log("reload done");
+    }
+
+    public override void OnStateUpdate(WeaponInput input, float deltaTime)
+    {
+        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        ctx.ReloadTimer.Tick(deltaTime);
+    }
+}
+
 public class WeaponGunPistol : Weapon
 {
-    private WeaponContextGunPistol _context = new();
-    private WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
+    private readonly WeaponContextGunPistol _context = new();
+    private readonly WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
 
     public override void Init(Player player)
     {
@@ -260,9 +293,9 @@ public class WeaponGunPistol : Weapon
         _stateMachine.TickBuffer.Clear();
 
         // Reset context
-        _context.CurrentStateIndex = (uint)WeaponContextGunPistol.StateIndex.Idle;
         _context.AmmoCount = _context.MagazineSize;
         _context.ShootTimer.Reset();
+        _context.ReloadTimer.Reset();
     }
 
     public override void SetLatestTickData<T>(T tickData)
