@@ -1,6 +1,7 @@
 <engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
     <Style src="project://database/Assets/Game/InGameMenu/InGameHud/InGameHud.uss?fileID=7433441132597879392&amp;guid=12f1bbb6f18904c4a87c612ace1a477d&amp;type=3#InGameHud" />
-    <engine:VisualElement style="flex-grow: 1;">
+    <engine:VisualElement name="VisualElement" style="flex-grow: 1;">
+        <engine:RadioButton toggle-on-label-click="false" value="true" enabled="false" style="position: absolute; align-self: center; align-items: center; top: 0; bottom: 0; margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0; scale: 0.4 0.4; background-color: rgba(0, 0, 0, 0);" />
         <engine:ProgressBar value="20" name="HealthBar" class="healthBar" style="bottom: 0; position: absolute; left: 0; width: 400px; margin-top: 20px; margin-right: 20px; margin-bottom: 20px; margin-left: 20px; flex-grow: 0;" />
     </engine:VisualElement>
 </engine:UXML>
