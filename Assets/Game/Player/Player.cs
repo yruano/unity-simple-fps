@@ -5,18 +5,17 @@ using UnityEngine.InputSystem;
 using Unity.Properties;
 using Unity.Cinemachine;
 using Unity.Netcode;
-using Unity.Netcode.Components;
 
 public struct PlayerInput : INetworkSerializable
 {
     public ulong Tick;
-    public float DeltaTime;
+    public float InputRotaionY;
     public Vector2 InputWalkDir;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
         serializer.SerializeValue(ref Tick);
-        serializer.SerializeValue(ref DeltaTime);
+        serializer.SerializeValue(ref InputRotaionY);
         serializer.SerializeValue(ref InputWalkDir);
     }
 }
@@ -33,6 +32,18 @@ public struct PlayerTickData : INetworkSerializable
     }
 }
 
+public struct OtherPlayerTickData : INetworkSerializable
+{
+    public float RotaionY;
+    public Vector3 Position;
+
+    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+    {
+        serializer.SerializeValue(ref RotaionY);
+        serializer.SerializeValue(ref Position);
+    }
+}
+
 public class Player : NetworkBehaviour
 {
     [SerializeField] private float WalkSpeed = 4.0f;
@@ -43,7 +54,6 @@ public class Player : NetworkBehaviour
 
     private GameObject _visual;
     private Collider _collider;
-    private AnticipatedNetworkTransform _netTransform;
     private CharacterController _characterController;
 
     private InputAction _inputMove;
@@ -76,14 +86,13 @@ public class Player : NetworkBehaviour
     public List<PlayerInput> InputBuffer = new();
     public List<PlayerTickData> TickBuffer = new();
     public PlayerTickData? LatestTickData = null;
+    public PlayerInput LastPlayerInput = new();
     public Queue<PlayerInput> RecivedPlayerInputs = new();
 
     private void Awake()
     {
         _visual = transform.GetChild(0).gameObject;
         _collider = GetComponent<Collider>();
-        _netTransform = GetComponent<AnticipatedNetworkTransform>();
-        _netTransform.Interpolate = true;
         _characterController = GetComponent<CharacterController>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
@@ -119,6 +128,11 @@ public class Player : NetworkBehaviour
             inGameHud.SetTargetPlayer(this);
         }
 
+        if (!IsHost && !IsOwner)
+        {
+            _characterController.enabled = false;
+        }
+
         base.OnNetworkSpawn();
     }
 
@@ -131,7 +145,7 @@ public class Player : NetworkBehaviour
         base.OnDestroy();
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
         if (IsOwner)
         {
@@ -139,16 +153,17 @@ public class Player : NetworkBehaviour
 
             CameraLook();
 
+            // Get input.
             var playerInput = new PlayerInput
             {
                 Tick = _tick,
-                DeltaTime = Time.deltaTime,
+                InputRotaionY = _cmFirstPersonCamera.transform.eulerAngles.y,
                 InputWalkDir = _inputMove.ReadValue<Vector2>(),
             };
 
             if (IsHost)
             {
-                OnUpdate(playerInput, Time.deltaTime);
+                OnUpdate(playerInput, Time.fixedDeltaTime);
             }
             else
             {
@@ -156,7 +171,7 @@ public class Player : NetworkBehaviour
                 SendPlayerInputToServerRpc(playerInput);
 
                 // Client-side prediction.
-                OnUpdate(playerInput, Time.deltaTime);
+                OnUpdate(playerInput, Time.fixedDeltaTime);
 
                 // Store tick data.
                 PushTickData(playerInput, GetTickData(_tick));
@@ -169,6 +184,35 @@ public class Player : NetworkBehaviour
         if (IsHost)
         {
             CheckDeath();
+        }
+
+        if (IsHost && !IsOwner)
+        {
+            ulong lastProcessedTick = 0;
+            while (RecivedPlayerInputs.Count > 0)
+            {
+                var input = RecivedPlayerInputs.Dequeue();
+                OnInput(input);
+
+                LastPlayerInput = input;
+                lastProcessedTick = input.Tick;
+            }
+
+            OnUpdate(LastPlayerInput, Time.fixedDeltaTime);
+
+            if (lastProcessedTick != 0)
+            {
+                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
+            }
+        }
+
+        if (IsHost)
+        {
+            SendOtherPlayerTickDataRpc(new OtherPlayerTickData
+            {
+                RotaionY = transform.eulerAngles.y,
+                Position = transform.position,
+            });
         }
     }
 
@@ -204,7 +248,9 @@ public class Player : NetworkBehaviour
 
     public void ApplyTickData(PlayerTickData tickData)
     {
+        _characterController.enabled = false;
         transform.position = tickData.Position;
+        _characterController.enabled = true;
     }
 
     public void PushTickData(PlayerInput input, PlayerTickData tickData)
@@ -230,8 +276,6 @@ public class Player : NetworkBehaviour
         var rotation = transform.eulerAngles;
         rotation.y = cameraRotation.y;
         transform.eulerAngles = rotation;
-
-        SendPlayerRotationRpc(cameraRotation.y);
     }
 
     private void Movement(Vector2 inputWalkDir, float deltaTime)
@@ -247,6 +291,13 @@ public class Player : NetworkBehaviour
             (transform.forward * forwardSpeed) +
             (transform.right * rightSpeed) +
             (transform.up * gravity));
+    }
+
+    private void OnInput(PlayerInput input)
+    {
+        var rotation = transform.eulerAngles;
+        rotation.y = input.InputRotaionY;
+        transform.eulerAngles = rotation;
     }
 
     private void OnUpdate(PlayerInput input, float deltaTime)
@@ -271,14 +322,15 @@ public class Player : NetworkBehaviour
             TickBuffer.RemoveRange(0, i + 1);
 
             // Check prediction.
-            if (!serverTickData.Equals(predictedTickData))
+            if (serverTickData.Position != predictedTickData.Position)
             {
                 // Resimulate.
                 ApplyTickData(serverTickData);
                 for (var j = 0; j < InputBuffer.Count; ++j)
                 {
                     var input = InputBuffer[j];
-                    OnUpdate(input, input.DeltaTime);
+                    OnInput(input);
+                    OnUpdate(input, Time.fixedDeltaTime);
                     TickBuffer[j] = GetTickData(input.Tick);
                 }
             }
@@ -328,12 +380,23 @@ public class Player : NetworkBehaviour
         }
     }
 
-    [Rpc(SendTo.NotOwner)]
-    private void SendPlayerRotationRpc(float rotationY)
+    [Rpc(SendTo.Owner)]
+    private void SendPlayerTickDataToOwnerRpc(PlayerTickData tickData)
     {
+        LatestTickData = tickData;
+    }
+
+    [Rpc(SendTo.NotServer)]
+    private void SendOtherPlayerTickDataRpc(OtherPlayerTickData tickData)
+    {
+        if (IsOwner)
+            return;
+
         var rotation = transform.eulerAngles;
-        rotation.y = rotationY;
+        rotation.y = tickData.RotaionY;
         transform.eulerAngles = rotation;
+
+        transform.position = tickData.Position;
     }
 
     [Rpc(SendTo.Server)]
