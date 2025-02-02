@@ -147,14 +147,15 @@ public class Player : NetworkBehaviour
 
     private void FixedUpdate()
     {
+        if (!IsSpawned)
+            return;
+
         if (IsOwner)
         {
             _tick += 1;
 
-            CameraLook();
-
             // Get input.
-            var playerInput = new PlayerInput
+            var input = new PlayerInput
             {
                 Tick = _tick,
                 InputRotaionY = _cmFirstPersonCamera.transform.eulerAngles.y,
@@ -163,18 +164,20 @@ public class Player : NetworkBehaviour
 
             if (IsHost)
             {
-                OnUpdate(playerInput, Time.fixedDeltaTime);
+                OnInput(input);
+                OnUpdate(input, Time.fixedDeltaTime);
             }
             else
             {
                 // Send input.
-                SendPlayerInputToServerRpc(playerInput);
+                SendPlayerInputToServerRpc(input);
 
                 // Client-side prediction.
-                OnUpdate(playerInput, Time.fixedDeltaTime);
+                OnInput(input);
+                OnUpdate(input, Time.fixedDeltaTime);
 
                 // Store tick data.
-                PushTickData(playerInput, GetTickData(_tick));
+                PushTickData(input, GetTickData(_tick));
 
                 // Reconclie.
                 Reconcile();
@@ -268,14 +271,7 @@ public class Player : NetworkBehaviour
     {
         _visual.SetActive(value);
         _collider.enabled = value;
-    }
-
-    private void CameraLook()
-    {
-        var cameraRotation = _cmFirstPersonCamera.transform.eulerAngles;
-        var rotation = transform.eulerAngles;
-        rotation.y = cameraRotation.y;
-        transform.eulerAngles = rotation;
+        _characterController.enabled = value;
     }
 
     private void Movement(Vector2 inputWalkDir, float deltaTime)

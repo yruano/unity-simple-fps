@@ -126,12 +126,12 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         switch (ctx.CurrentStateIndex)
         {
             case (uint)StateIndex.Idle:
-                if (ctx.AmmoCount > 0 && input.InputWeaponShoot)
+                if (ctx.AmmoCount > 0 && input.InputDownWeaponShoot)
                 {
                     return (uint)StateIndex.Shoot;
                 }
 
-                if (ctx.AmmoCount < ctx.MagazineSize && input.InputWeaponReload)
+                if (ctx.AmmoCount < ctx.MagazineSize && input.InputDownWeaponReload)
                 {
                     return (uint)StateIndex.Reload;
                 }
@@ -276,6 +276,7 @@ public class WeaponGunPistol : Weapon
 {
     private readonly WeaponContextGunPistol _context = new();
     private readonly WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
+    private WeaponInput LastWeaponInput = new();
 
     public override void Init(Player player)
     {
@@ -310,71 +311,75 @@ public class WeaponGunPistol : Weapon
         }
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
         if (!_player.IsSpawned)
             return;
 
-        if (_player.IsDead)
-            return;
-
         if (_player.IsOwner)
         {
-            _tick += 1;
-
-            // Get user input.
-            var input = new WeaponInput
+            if (!_player.IsDead)
             {
-                Tick = _tick,
-                DeltaTime = Time.deltaTime,
-                InputCameraDir = _player.GetCameraDir(),
-                InputWeaponShoot = _context.InputWeaponShoot.IsPressed(),
-                InputWeaponAim = _context.InputWeaponAim.IsPressed(),
-                InputWeaponReload = _context.InputWeaponReload.IsPressed()
-            };
+                _tick += 1;
 
-            if (_stateMachine.Player.IsHost)
-            {
-                // Run state machine.
-                _stateMachine.OnUpdate(input, Time.deltaTime);
-            }
-            else
-            {
-                // Send user input.
-                _player.SendWeaponInputToServerRpc(input);
+                // Get user input.
+                var input = new WeaponInput
+                {
+                    Tick = _tick,
+                    InputCameraDir = _player.GetCameraDir(),
+                    InputDownWeaponShoot = _context.InputWeaponShoot.WasPressedThisFrame(),
+                    InputHoldWeaponAim = _context.InputWeaponAim.IsPressed(),
+                    InputDownWeaponReload = _context.InputWeaponReload.WasPressedThisFrame(),
+                };
 
-                // Run state machine. (client-side prediction)
-                _stateMachine.OnUpdate(input, Time.deltaTime);
+                if (_stateMachine.Player.IsHost)
+                {
+                    // Run state machine.
+                    _stateMachine.DoTransition(input);
+                    _stateMachine.OnUpdate(input, Time.deltaTime);
+                }
+                else
+                {
+                    // Send user input.
+                    _player.SendWeaponInputToServerRpc(input);
 
-                // Store tick data.
-                _stateMachine.PushTickData(input, _stateMachine.Context.GetTickData(_tick));
+                    // Run state machine. (client-side prediction)
+                    _stateMachine.DoTransition(input);
+                    _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
 
-                // Reconcile.
-                Reconcile();
+                    // Store tick data.
+                    _stateMachine.PushTickData(input, _stateMachine.Context.GetTickData(_tick));
+
+                    // Reconcile.
+                    Reconcile();
+                }
             }
         }
-    }
 
-    private void FixedUpdate()
-    {
         if (_player.IsHost)
         {
-            if (_player.IsDead)
-                return;
-
             // Process input.
             ulong lastProcessedTick = 0;
             while (_player.RecivedWeaponInputs.Count > 0)
             {
-                var input = _player.RecivedWeaponInputs.Dequeue();
-                _stateMachine.OnUpdate(input, input.DeltaTime);
+                // TODO: 인풋이 뭉쳐서 오는 경우에 대해서 고민해보기.
 
+                var input = _player.RecivedWeaponInputs.Dequeue();
+                _stateMachine.DoTransition(input);
+
+                LastWeaponInput = input;
                 lastProcessedTick = input.Tick;
             }
 
+            _stateMachine.OnUpdate(LastWeaponInput, Time.fixedDeltaTime);
+            LastWeaponInput.ResetInputDown();
+
             // Send state to client.
-            var tickData = _stateMachine.Context.GetTickData(lastProcessedTick);
-            _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
+            if (lastProcessedTick != 0)
+            {
+                var tickData = _stateMachine.Context.GetTickData(lastProcessedTick);
+                _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
+            }
 
             // TODO: 다른 캐릭터의 데이터도 동기화 (이펙트랑 애니만??)
         }
@@ -410,7 +415,7 @@ public class WeaponGunPistol : Weapon
                 for (var j = 0; j < _stateMachine.InputBuffer.Count; ++j)
                 {
                     var input = _stateMachine.InputBuffer[j];
-                    _stateMachine.OnUpdate(input, input.DeltaTime);
+                    _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
                     _stateMachine.TickBuffer[j] = _stateMachine.Context.GetTickData(input.Tick);
                 }
             }
