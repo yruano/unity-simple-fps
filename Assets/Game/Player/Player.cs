@@ -200,14 +200,21 @@ public class Player : NetworkBehaviour
             }
 
             ulong lastProcessedTick = 0;
-            if (_startTick && RecivedPlayerInputs.Count > 0)
+            if (_startTick)
             {
-                var input = RecivedPlayerInputs.Dequeue();
-                OnInput(input);
-                OnUpdate(input, Time.fixedDeltaTime);
+                if (RecivedPlayerInputs.Count > 0)
+                {
+                    var input = RecivedPlayerInputs.Dequeue();
+                    OnInput(input);
+                    OnUpdate(input, Time.fixedDeltaTime);
 
-                LastPlayerInput = input;
-                lastProcessedTick = input.Tick;
+                    LastPlayerInput = input;
+                    lastProcessedTick = input.Tick;
+                }
+                else
+                {
+                    OnUpdate(LastPlayerInput, Time.fixedDeltaTime);
+                }
             }
 
             _serverTick += 1;
