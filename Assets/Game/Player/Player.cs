@@ -85,6 +85,7 @@ public class Player : NetworkBehaviour
 
     private ulong _tick = 0;
     private ulong _serverTick = 0;
+    private bool _startTick = false;
     public List<PlayerInput> InputBuffer = new();
     public List<PlayerTickData> TickBuffer = new();
     public PlayerTickData? LatestTickData = null;
@@ -193,25 +194,32 @@ public class Player : NetworkBehaviour
 
         if (IsHost && !IsOwner)
         {
+            if (!_startTick && RecivedPlayerInputs.Count >= 5)
+            {
+                _startTick = true;
+            }
+
             ulong lastProcessedTick = 0;
-            while (RecivedPlayerInputs.Count > 0)
+            if (_startTick && RecivedPlayerInputs.Count > 0)
             {
                 var input = RecivedPlayerInputs.Dequeue();
                 OnInput(input);
+                OnUpdate(input, Time.fixedDeltaTime);
 
                 LastPlayerInput = input;
                 lastProcessedTick = input.Tick;
             }
 
-            OnUpdate(LastPlayerInput, Time.fixedDeltaTime);
-
+            _serverTick += 1;
             if (lastProcessedTick != 0)
             {
-                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _serverTick));
                 _serverTick = 0;
+                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
             }
-
-            _serverTick += 1;
+            else
+            {
+                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _serverTick));
+            }
         }
 
         if (IsHost)
