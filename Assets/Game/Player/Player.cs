@@ -48,6 +48,7 @@ public class Player : NetworkBehaviour
 {
     [SerializeField] private float WalkSpeed = 4.0f;
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
+    [SerializeField] private PlayerCameraTarget PrefabPlayerCameraTarget;
     [SerializeField] private Weapon PrefabWeaponPistol;
 
     private GameUser _user;
@@ -83,6 +84,7 @@ public class Player : NetworkBehaviour
     }
 
     private ulong _tick = 0;
+    private ulong _serverTick = 0;
     public List<PlayerInput> InputBuffer = new();
     public List<PlayerTickData> TickBuffer = new();
     public PlayerTickData? LatestTickData = null;
@@ -107,10 +109,10 @@ public class Player : NetworkBehaviour
         }
 
         // Setup camera target.
-        _cameraTarget = new GameObject().AddComponent<PlayerCameraTarget>();
+        _cameraTarget = Instantiate(PrefabPlayerCameraTarget);
         _cameraTarget.Target = transform;
         _cameraTarget.Offset = Vector3.up * 0.5f;
-        _cameraTarget.MoveToTarget();
+        _cameraTarget.TeleportToTarget();
 
         // Setup weapon.
         _weapon = Instantiate(PrefabWeaponPistol);
@@ -205,8 +207,11 @@ public class Player : NetworkBehaviour
 
             if (lastProcessedTick != 0)
             {
-                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
+                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _serverTick));
+                _serverTick = 0;
             }
+
+            _serverTick += 1;
         }
 
         if (IsHost)
@@ -320,6 +325,8 @@ public class Player : NetworkBehaviour
             // Check prediction.
             if (serverTickData.Position != predictedTickData.Position)
             {
+                Debug.Log("prediction failed");
+
                 // Resimulate.
                 ApplyTickData(serverTickData);
                 for (var j = 0; j < InputBuffer.Count; ++j)
@@ -329,6 +336,10 @@ public class Player : NetworkBehaviour
                     OnUpdate(input, Time.fixedDeltaTime);
                     TickBuffer[j] = GetTickData(input.Tick);
                 }
+            }
+            else
+            {
+                Debug.Log("prediction success");
             }
         }
     }
@@ -393,6 +404,7 @@ public class Player : NetworkBehaviour
         transform.eulerAngles = rotation;
 
         transform.position = tickData.Position;
+        _visual.transform.Teleport(Vector3.zero, Quaternion.identity);
     }
 
     [Rpc(SendTo.Server)]

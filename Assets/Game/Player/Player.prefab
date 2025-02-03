@@ -183,7 +183,6 @@ GameObject:
   - component: {fileID: 3833198878710272064}
   - component: {fileID: 3557875624236106579}
   - component: {fileID: 6942343790474263685}
-  - component: {fileID: 7883156882030346634}
   - component: {fileID: 1954384263424809066}
   - component: {fileID: 185233325186327822}
   m_Layer: 0
@@ -202,7 +201,7 @@ Transform:
   m_GameObject: {fileID: 5353466884580838120}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 5.02, z: 2.86}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -257,43 +256,6 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
---- !u!114 &7883156882030346634
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5353466884580838120}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5abfce83aadd948498d4990c645a017b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  NetworkTransformExpanded: 1
-  AuthorityMode: 0
-  TickSyncChildren: 0
-  UseUnreliableDeltas: 0
-  SyncPositionX: 1
-  SyncPositionY: 1
-  SyncPositionZ: 1
-  SyncRotAngleX: 1
-  SyncRotAngleY: 1
-  SyncRotAngleZ: 1
-  SyncScaleX: 1
-  SyncScaleY: 1
-  SyncScaleZ: 1
-  PositionThreshold: 0.001
-  RotAngleThreshold: 0.01
-  ScaleThreshold: 0.01
-  UseQuaternionSynchronization: 0
-  UseQuaternionCompression: 0
-  UseHalfFloatPrecision: 0
-  InLocalSpace: 0
-  SwitchTransformSpaceWhenParented: 0
-  Interpolate: 0
-  SlerpPosition: 0
-  StaleDataHandling: 1
 --- !u!143 &1954384263424809066
 CharacterController:
   m_ObjectHideFlags: 0
@@ -333,7 +295,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   WalkSpeed: 4
-  PrefabCmFirstPersonCamera: {fileID: 6172808420142056969, guid: 964bf43de828722469ee9e7fecef52a5, type: 3}
+  PrefabCmFirstPersonCamera: {fileID: 8907721915714607548, guid: 4d7089de1f25c6a448dcc9a172a8c811, type: 3}
+  PrefabPlayerCameraTarget: {fileID: 240644381404792601, guid: 15541baddda80f24b93ccb835b69b77a, type: 3}
   PrefabWeaponPistol: {fileID: 4686848605365825, guid: f8a0f09af495602439411cfa7a478823, type: 3}
 --- !u!1 &7389861592559423342
 GameObject:
@@ -381,3 +344,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1572a74edc7ef8343a4be1e3122c7907, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  UseLocal: 1

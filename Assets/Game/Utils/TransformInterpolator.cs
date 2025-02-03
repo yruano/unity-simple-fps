@@ -70,13 +70,32 @@ public static class TransformUtils // Convenience functions:
 /// </summary>
 public class TransformInterpolator : MonoBehaviour
 {
+    private struct TransformData
+    {
+        public Vector3 Position;
+        public Quaternion Rotation;
+    }
+
+    public bool UseLocal = true;
+    private TransformData transformData_;
+    private TransformData prevTransformData_;
+    private bool isTransformInterpolated_ = false;
+    private bool isEnabled_ = false;
+
     void OnDisable() // Restore current transform state:
     {
         if (isTransformInterpolated_)
         {
-            transform.localPosition = transformData_.Position;
-            transform.localRotation = transformData_.Rotation;
-            transform.localScale = transformData_.Scale;
+            if (UseLocal)
+            {
+                transform.localPosition = transformData_.Position;
+                transform.localRotation = transformData_.Rotation;
+            }
+            else
+            {
+                transform.position = transformData_.Position;
+                transform.rotation = transformData_.Rotation;
+            }
 
             isTransformInterpolated_ = false;
         }
@@ -89,16 +108,31 @@ public class TransformInterpolator : MonoBehaviour
         // Restore current transform state in the first FixedUpdate() call of the frame.
         if (isTransformInterpolated_)
         {
-            transform.localPosition = transformData_.Position;
-            transform.localRotation = transformData_.Rotation;
-            transform.localScale = transformData_.Scale;
+            if (UseLocal)
+            {
+                transform.localPosition = transformData_.Position;
+                transform.localRotation = transformData_.Rotation;
+            }
+            else
+            {
+                transform.position = transformData_.Position;
+                transform.rotation = transformData_.Rotation;
+            }
 
             isTransformInterpolated_ = false;
         }
         // Cache current transform as the starting point for interpolation.
-        prevTransformData_.Position = transform.localPosition;
-        prevTransformData_.Rotation = transform.localRotation;
-        prevTransformData_.Scale = transform.localScale;
+
+        if (UseLocal)
+        {
+            prevTransformData_.Position = transform.localPosition;
+            prevTransformData_.Rotation = transform.localRotation;
+        }
+        else
+        {
+            prevTransformData_.Position = transform.position;
+            prevTransformData_.Rotation = transform.rotation;
+        }
     }
 
     void LateUpdate()   // Interpolate in Update() or LateUpdate().
@@ -115,9 +149,16 @@ public class TransformInterpolator : MonoBehaviour
         // Cache the final transform state as the end point of interpolation.
         if (!isTransformInterpolated_)
         {
-            transformData_.Position = transform.localPosition;
-            transformData_.Rotation = transform.localRotation;
-            transformData_.Scale = transform.localScale;
+            if (UseLocal)
+            {
+                transformData_.Position = transform.localPosition;
+                transformData_.Rotation = transform.localRotation;
+            }
+            else
+            {
+                transformData_.Position = transform.position;
+                transformData_.Rotation = transform.rotation;
+            }
 
             // This promise matches the execution that follows after that.
             isTransformInterpolated_ = true;
@@ -126,34 +167,32 @@ public class TransformInterpolator : MonoBehaviour
         // (Time.time - Time.fixedTime) is the "unprocessed" time according to documentation.
         float interpolationAlpha = (Time.time - Time.fixedTime) / Time.fixedDeltaTime;
 
-
         // Interpolate transform:
-        transform.localPosition = Vector3.Lerp(prevTransformData_.Position,
-        transformData_.Position, interpolationAlpha);
-        transform.localRotation = Quaternion.Slerp(prevTransformData_.Rotation,
-        transformData_.Rotation, interpolationAlpha);
-        transform.localScale = Vector3.Lerp(prevTransformData_.Scale,
-        transformData_.Scale, interpolationAlpha);
+        if (UseLocal)
+        {
+            transform.localPosition = Vector3.Lerp(prevTransformData_.Position, transformData_.Position, interpolationAlpha);
+            transform.localRotation = Quaternion.Slerp(prevTransformData_.Rotation, transformData_.Rotation, interpolationAlpha);
+        }
+        else
+        {
+            transform.position = Vector3.Lerp(prevTransformData_.Position, transformData_.Position, interpolationAlpha);
+            transform.rotation = Quaternion.Slerp(prevTransformData_.Rotation, transformData_.Rotation, interpolationAlpha);
+        }
     }
 
     private void OnEnabledProcedure() // Captures initial transform state.
     {
-        prevTransformData_.Position = transform.localPosition;
-        prevTransformData_.Rotation = transform.localRotation;
-        prevTransformData_.Scale = transform.localScale;
+        if (UseLocal)
+        {
+            prevTransformData_.Position = transform.localPosition;
+            prevTransformData_.Rotation = transform.localRotation;
+        }
+        else
+        {
+            prevTransformData_.Position = transform.position;
+            prevTransformData_.Rotation = transform.rotation;
+        }
 
         isEnabled_ = true;
     }
-
-    private struct TransformData
-    {
-        public Vector3 Position;
-        public Vector3 Scale;
-        public Quaternion Rotation;
-    }
-
-    private TransformData transformData_;
-    private TransformData prevTransformData_;
-    private bool isTransformInterpolated_ = false;
-    private bool isEnabled_ = false;
 }
