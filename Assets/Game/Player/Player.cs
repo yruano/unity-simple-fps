@@ -213,7 +213,7 @@ public class Player : NetworkBehaviour
                     if (RecivedPlayerInputs.Count <= 5) _startSpeedUp = false;
                     if (RecivedPlayerInputs.Count >= 5) _startSlowDown = false;
 
-                    if (RecivedPlayerInputs.Count >= 10) _startSpeedUp = true;
+                    if (RecivedPlayerInputs.Count >= 8) _startSpeedUp = true;
                     if (RecivedPlayerInputs.Count <= 3) _startSlowDown = true;
 
                     if (!_startSlowDown || RecivedPlayerInputs.Count % 2 == 0)
