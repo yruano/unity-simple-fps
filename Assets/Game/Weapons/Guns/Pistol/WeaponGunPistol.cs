@@ -194,7 +194,7 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
                     if (collider != StateMachine.Player && collider.CompareTag("Player"))
                     {
                         var player = collider.GetComponent<Player>();
-                        player.Health -= _damage;
+                        player.ApplyDamage(_damage);
                     }
                 }
             }

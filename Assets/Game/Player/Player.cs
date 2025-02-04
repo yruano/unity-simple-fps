@@ -24,12 +24,16 @@ public struct PlayerInput : INetworkSerializable
 public struct PlayerTickData : INetworkSerializable
 {
     public ulong Tick;
+    public int HealthMax;
+    public int Health;
     public float VelocityY;
     public Vector3 Position;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
         serializer.SerializeValue(ref Tick);
+        serializer.SerializeValue(ref HealthMax);
+        serializer.SerializeValue(ref Health);
         serializer.SerializeValue(ref VelocityY);
         serializer.SerializeValue(ref Position);
     }
@@ -38,12 +42,16 @@ public struct PlayerTickData : INetworkSerializable
 public struct OtherPlayerTickData : INetworkSerializable
 {
     public ulong Tick;
+    public int HealthMax;
+    public int Health;
     public float RotaionY;
     public Vector3 Position;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
         serializer.SerializeValue(ref Tick);
+        serializer.SerializeValue(ref Health);
+        serializer.SerializeValue(ref HealthMax);
         serializer.SerializeValue(ref RotaionY);
         serializer.SerializeValue(ref Position);
     }
@@ -71,23 +79,9 @@ public class Player : NetworkBehaviour
     public Queue<WeaponInput> RecivedWeaponInputs = new();
 
     public bool IsDead { get; private set; } = false;
+    [CreateProperty] public int HealthMax { get; private set; } = 100;
+    [CreateProperty] public int Health { get; private set; } = 0;
     private float _velocityY = 0;
-
-    private NetworkVariable<int> _healthMax = new(100);
-    [CreateProperty]
-    public int HealthMax
-    {
-        get => _healthMax.Value;
-        set => _healthMax.Value = Mathf.Max(value, 0);
-    }
-
-    private NetworkVariable<int> _health = new();
-    [CreateProperty]
-    public int Health
-    {
-        get => _health.Value;
-        set => _health.Value = Mathf.Clamp(value, 0, HealthMax);
-    }
 
     private ulong _tick = 0;
     private ulong _delayTick = 0;
@@ -263,6 +257,8 @@ public class Player : NetworkBehaviour
             SendOtherPlayerTickDataRpc(new OtherPlayerTickData
             {
                 Tick = _serverTick,
+                HealthMax = HealthMax,
+                Health = Health,
                 RotaionY = transform.eulerAngles.y,
                 Position = transform.position,
             });
@@ -295,6 +291,8 @@ public class Player : NetworkBehaviour
         return new PlayerTickData
         {
             Tick = tick,
+            HealthMax = HealthMax,
+            Health = Health,
             VelocityY = _velocityY,
             Position = transform.position,
         };
@@ -302,8 +300,12 @@ public class Player : NetworkBehaviour
 
     public void ApplyTickData(PlayerTickData tickData)
     {
-        _velocityY = tickData.VelocityY;
+        // Apply stats.
+        HealthMax = tickData.HealthMax;
+        Health = tickData.Health;
 
+        // Apply velocity and position.
+        _velocityY = tickData.VelocityY;
         _characterController.enabled = false;
         transform.position = tickData.Position;
         _characterController.enabled = true;
@@ -376,7 +378,12 @@ public class Player : NetworkBehaviour
             TickBuffer.ConsumeSpan(i + 1);
 
             // Check prediction.
-            if (serverTickData.Position != predictedTickData.Position)
+            bool isDesync =
+                serverTickData.HealthMax != predictedTickData.HealthMax ||
+                serverTickData.Health != predictedTickData.Health ||
+                serverTickData.Position != predictedTickData.Position;
+
+            if (isDesync)
             {
                 Debug.Log("prediction failed");
 
@@ -418,6 +425,16 @@ public class Player : NetworkBehaviour
 
             Invoke(nameof(Respawn), 3.0f);
         }
+    }
+
+    public void ApplyDamage(int value)
+    {
+        Health = Mathf.Clamp(Health - value, 0, HealthMax);
+    }
+
+    public void ApplyHeal(int value)
+    {
+        Health = Mathf.Clamp(Health + value, 0, HealthMax);
     }
 
     [Rpc(SendTo.Everyone)]

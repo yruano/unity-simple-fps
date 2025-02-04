@@ -5,7 +5,7 @@ public class HealthPickup : Pickup
 {
     public override void OnPickup(Player player)
     {
-        player.Health += 20;
+        player.ApplyHeal(20);
         GetComponent<NetworkObject>().Despawn();
     }
 }
