@@ -94,8 +94,8 @@ public class Player : NetworkBehaviour
     private ulong _serverTick = 0;
     private ulong _lastServerTick = 0;
     private bool _startTick = false;
-    private bool _startSpeedUp = false;
-    private bool _startSlowDown = false;
+    private bool _tickSpeedUp = false;
+    private bool _tickSlowDown = false;
     public RingBuffer<PlayerInput> InputBuffer = new(20);
     public RingBuffer<PlayerTickData> TickBuffer = new(20);
     public PlayerTickData? LatestTickData = null;
@@ -213,26 +213,26 @@ public class Player : NetworkBehaviour
                 Debug.Log(RecivedPlayerInputs.Count);
                 if (RecivedPlayerInputs.Count > 0)
                 {
-                    if (RecivedPlayerInputs.Count <= 5) _startSpeedUp = false;
-                    if (RecivedPlayerInputs.Count >= 5) _startSlowDown = false;
+                    // Stop tick speed up / down.
+                    if (RecivedPlayerInputs.Count <= 5) _tickSpeedUp = false;
+                    if (RecivedPlayerInputs.Count >= 5) _tickSlowDown = false;
 
-                    if (RecivedPlayerInputs.Count >= 8) _startSpeedUp = true;
-                    if (RecivedPlayerInputs.Count <= 3) _startSlowDown = true;
+                    // Start tick speed up / down.
+                    if (RecivedPlayerInputs.Count >= 8) _tickSpeedUp = true;
+                    if (RecivedPlayerInputs.Count <= 3) _tickSlowDown = true;
 
-                    if (!_startSlowDown || RecivedPlayerInputs.Count % 2 == 0)
+                    if (!_tickSlowDown || RecivedPlayerInputs.Count % 2 == 0)
                     {
                         var input = RecivedPlayerInputs.Dequeue();
                         OnUpdate(input, Time.fixedDeltaTime);
-
                         LastPlayerInput = input;
                         lastProcessedTick = input.Tick;
                     }
 
-                    if (_startSpeedUp && RecivedPlayerInputs.Count % 2 == 0)
+                    if (_tickSpeedUp && RecivedPlayerInputs.Count % 2 == 0)
                     {
                         var input = RecivedPlayerInputs.Dequeue();
                         OnUpdate(input, Time.fixedDeltaTime);
-
                         LastPlayerInput = input;
                         lastProcessedTick = input.Tick;
                     }
@@ -241,22 +241,24 @@ public class Player : NetworkBehaviour
                 {
                     OnUpdate(LastPlayerInput, Time.fixedDeltaTime);
                 }
-            }
 
-            _delayTick += 1;
-            if (lastProcessedTick != 0)
-            {
-                _delayTick = 0;
-                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
-            }
-            else
-            {
-                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _delayTick));
+                // Send state to the client.
+                _delayTick += 1;
+                if (lastProcessedTick != 0)
+                {
+                    _delayTick = 0;
+                    SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
+                }
+                else
+                {
+                    SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _delayTick));
+                }
             }
         }
 
         if (IsHost)
         {
+            // Send state to other clients.
             _serverTick += 1;
             SendOtherPlayerTickDataRpc(new OtherPlayerTickData
             {

@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using Unity.Netcode;
+using RingBuffer;
 
 public struct WeaponTickDataGunPistol : IWeaponTickData
 {
@@ -335,7 +336,6 @@ public class WeaponGunPistol : Weapon
                 if (_stateMachine.Player.IsHost)
                 {
                     // Run state machine.
-                    _stateMachine.DoTransition(input);
                     _stateMachine.OnUpdate(input, Time.deltaTime);
                 }
                 else
@@ -344,7 +344,6 @@ public class WeaponGunPistol : Weapon
                     _player.SendWeaponInputToServerRpc(input);
 
                     // Run state machine. (client-side prediction)
-                    _stateMachine.DoTransition(input);
                     _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
 
                     // Store tick data.
@@ -358,27 +357,59 @@ public class WeaponGunPistol : Weapon
 
         if (_player.IsHost)
         {
-            // Process input.
-            ulong lastProcessedTick = 0;
-            while (_player.RecivedWeaponInputs.Count > 0)
+            if (!_startTick && _player.RecivedWeaponInputs.Count >= 5)
             {
-                // TODO: 인풋이 뭉쳐서 오는 경우에 대해서 고민해보기.
-
-                var input = _player.RecivedWeaponInputs.Dequeue();
-                _stateMachine.DoTransition(input);
-
-                LastWeaponInput = input;
-                lastProcessedTick = input.Tick;
+                _startTick = true;
             }
 
-            _stateMachine.OnUpdate(LastWeaponInput, Time.fixedDeltaTime);
-            LastWeaponInput.ResetInputDown();
-
-            // Send state to client.
-            if (lastProcessedTick != 0)
+            ulong lastProcessedTick = 0;
+            if (_startTick)
             {
-                var tickData = _stateMachine.Context.GetTickData(lastProcessedTick);
-                _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
+                if (_player.RecivedWeaponInputs.Count > 0)
+                {
+                    // Stop tick speed up / down.
+                    if (_player.RecivedWeaponInputs.Count <= 5) _tickSpeedUp = false;
+                    if (_player.RecivedWeaponInputs.Count >= 5) _tickSlowDown = false;
+
+                    // Start tick speed up / down.
+                    if (_player.RecivedWeaponInputs.Count >= 8) _tickSpeedUp = true;
+                    if (_player.RecivedWeaponInputs.Count <= 3) _tickSlowDown = true;
+
+                    if (!_tickSlowDown || _player.RecivedWeaponInputs.Count % 2 == 0)
+                    {
+                        var input = _player.RecivedWeaponInputs.Dequeue();
+                        _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
+                        LastWeaponInput = input;
+                        lastProcessedTick = input.Tick;
+                    }
+
+                    if (_tickSpeedUp && _player.RecivedWeaponInputs.Count % 2 == 0)
+                    {
+                        var input = _player.RecivedWeaponInputs.Dequeue();
+                        _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
+                        LastWeaponInput = input;
+                        lastProcessedTick = input.Tick;
+                    }
+                }
+                else
+                {
+                    LastWeaponInput.ResetInputDown();
+                    _stateMachine.OnUpdate(LastWeaponInput, Time.fixedDeltaTime);
+                }
+
+                // Send state to the client.
+                _delayTick += 1;
+                if (lastProcessedTick != 0)
+                {
+                    _delayTick = 0;
+                    var tickData = _stateMachine.Context.GetTickData(lastProcessedTick);
+                    _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
+                }
+                else
+                {
+                    var tickData = _stateMachine.Context.GetTickData(lastProcessedTick + _delayTick);
+                    _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
+                }
             }
 
             // TODO: 다른 캐릭터의 데이터도 동기화 (이펙트랑 애니만??)
@@ -398,8 +429,8 @@ public class WeaponGunPistol : Weapon
             var predictedTickData = _stateMachine.TickBuffer[i];
 
             // Remove old data.
-            _stateMachine.InputBuffer.RemoveRange(0, i + 1);
-            _stateMachine.TickBuffer.RemoveRange(0, i + 1);
+            _stateMachine.InputBuffer.ConsumeSpan(i + 1);
+            _stateMachine.TickBuffer.ConsumeSpan(i + 1);
 
             // Check prediction.
             if (!serverTickData.Equals(predictedTickData))

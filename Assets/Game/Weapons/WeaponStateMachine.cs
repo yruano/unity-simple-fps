@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RingBuffer;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -106,8 +107,8 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
     public WeaponState<TickData> CurrentState;
 
     public TickData? LatestTickData = null;
-    public List<WeaponInput> InputBuffer = new();
-    public List<TickData> TickBuffer = new();
+    public RingBuffer<WeaponInput> InputBuffer = new(20);
+    public RingBuffer<TickData> TickBuffer = new(20);
 
     public void Init(Player player, WeaponContext<TickData> context)
     {
@@ -124,18 +125,23 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
 
     public void PushTickData(WeaponInput input, TickData tickData)
     {
+        if (InputBuffer.Count == InputBuffer.Capacity)
+            InputBuffer.PopFirst();
         InputBuffer.Add(input);
-        if (InputBuffer.Count >= 30)
-            InputBuffer.RemoveAt(0);
 
+        if (TickBuffer.Count == TickBuffer.Capacity)
+            InputBuffer.PopFirst();
         TickBuffer.Add(tickData);
-        if (TickBuffer.Count >= 30)
-            TickBuffer.RemoveAt(0);
     }
 
     public int GetTickDataIndexFromBuffer(ulong tick)
     {
-        return TickBuffer.FindIndex(item => item.GetHeader().Tick == tick);
+        for (var i = 0; i < TickBuffer.Count; ++i)
+        {
+            if (TickBuffer[i].GetHeader().Tick == tick)
+                return i;
+        }
+        return -1;
     }
 
     public void DoTransition(WeaponInput input)
@@ -175,6 +181,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
             return;
         }
 
+        DoTransition(input);
         CurrentState.OnStateUpdate(input, deltaTime);
     }
 }
