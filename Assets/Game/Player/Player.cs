@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RingBuffer;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Properties;
@@ -36,11 +37,13 @@ public struct PlayerTickData : INetworkSerializable
 
 public struct OtherPlayerTickData : INetworkSerializable
 {
+    public ulong Tick;
     public float RotaionY;
     public Vector3 Position;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
+        serializer.SerializeValue(ref Tick);
         serializer.SerializeValue(ref RotaionY);
         serializer.SerializeValue(ref Position);
     }
@@ -87,12 +90,14 @@ public class Player : NetworkBehaviour
     }
 
     private ulong _tick = 0;
+    private ulong _delayTick = 0;
     private ulong _serverTick = 0;
+    private ulong _lastServerTick = 0;
     private bool _startTick = false;
     private bool _startSpeedUp = false;
     private bool _startSlowDown = false;
-    public List<PlayerInput> InputBuffer = new();
-    public List<PlayerTickData> TickBuffer = new();
+    public RingBuffer<PlayerInput> InputBuffer = new(20);
+    public RingBuffer<PlayerTickData> TickBuffer = new(20);
     public PlayerTickData? LatestTickData = null;
     public PlayerInput LastPlayerInput = new();
     public Queue<PlayerInput> RecivedPlayerInputs = new();
@@ -172,7 +177,6 @@ public class Player : NetworkBehaviour
 
             if (IsHost)
             {
-                OnInput(input);
                 OnUpdate(input, Time.fixedDeltaTime);
             }
             else
@@ -181,7 +185,6 @@ public class Player : NetworkBehaviour
                 SendPlayerInputToServerRpc(input);
 
                 // Client-side prediction.
-                OnInput(input);
                 OnUpdate(input, Time.fixedDeltaTime);
 
                 // Store tick data.
@@ -219,7 +222,6 @@ public class Player : NetworkBehaviour
                     if (!_startSlowDown || RecivedPlayerInputs.Count % 2 == 0)
                     {
                         var input = RecivedPlayerInputs.Dequeue();
-                        OnInput(input);
                         OnUpdate(input, Time.fixedDeltaTime);
 
                         LastPlayerInput = input;
@@ -229,7 +231,6 @@ public class Player : NetworkBehaviour
                     if (_startSpeedUp && RecivedPlayerInputs.Count % 2 == 0)
                     {
                         var input = RecivedPlayerInputs.Dequeue();
-                        OnInput(input);
                         OnUpdate(input, Time.fixedDeltaTime);
 
                         LastPlayerInput = input;
@@ -242,22 +243,24 @@ public class Player : NetworkBehaviour
                 }
             }
 
-            _serverTick += 1;
+            _delayTick += 1;
             if (lastProcessedTick != 0)
             {
-                _serverTick = 0;
+                _delayTick = 0;
                 SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
             }
             else
             {
-                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _serverTick));
+                SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _delayTick));
             }
         }
 
         if (IsHost)
         {
+            _serverTick += 1;
             SendOtherPlayerTickDataRpc(new OtherPlayerTickData
             {
+                Tick = _serverTick,
                 RotaionY = transform.eulerAngles.y,
                 Position = transform.position,
             });
@@ -306,13 +309,13 @@ public class Player : NetworkBehaviour
 
     public void PushTickData(PlayerInput input, PlayerTickData tickData)
     {
+        if (InputBuffer.Count == InputBuffer.Capacity)
+            InputBuffer.PopFirst();
         InputBuffer.Add(input);
-        if (InputBuffer.Count >= 30)
-            InputBuffer.RemoveAt(0);
 
+        if (TickBuffer.Count == TickBuffer.Capacity)
+            InputBuffer.PopFirst();
         TickBuffer.Add(tickData);
-        if (TickBuffer.Count >= 30)
-            TickBuffer.RemoveAt(0);
     }
 
     public void SetPlayerActive(bool value)
@@ -337,15 +340,12 @@ public class Player : NetworkBehaviour
             (transform.up * _velocityY * deltaTime));
     }
 
-    private void OnInput(PlayerInput input)
+    private void OnUpdate(PlayerInput input, float deltaTime)
     {
         var rotation = transform.eulerAngles;
         rotation.y = input.InputRotaionY;
         transform.eulerAngles = rotation;
-    }
 
-    private void OnUpdate(PlayerInput input, float deltaTime)
-    {
         Movement(input.InputWalkDir, deltaTime);
     }
 
@@ -356,14 +356,22 @@ public class Player : NetworkBehaviour
         {
             LatestTickData = null;
 
-            var i = TickBuffer.FindIndex(item => item.Tick == serverTickData.Tick);
+            var i = -1;
+            for (var j = 0; j < TickBuffer.Count; ++j)
+            {
+                if (TickBuffer[j].Tick == serverTickData.Tick)
+                {
+                    i = j;
+                    break;
+                }
+            }
             if (i == -1) return;
 
             var predictedTickData = TickBuffer[i];
 
             // Remove old data.
-            InputBuffer.RemoveRange(0, i + 1);
-            TickBuffer.RemoveRange(0, i + 1);
+            InputBuffer.ConsumeSpan(i + 1);
+            TickBuffer.ConsumeSpan(i + 1);
 
             // Check prediction.
             if (serverTickData.Position != predictedTickData.Position)
@@ -375,7 +383,6 @@ public class Player : NetworkBehaviour
                 for (var j = 0; j < InputBuffer.Count; ++j)
                 {
                     var input = InputBuffer[j];
-                    OnInput(input);
                     OnUpdate(input, Time.fixedDeltaTime);
                     TickBuffer[j] = GetTickData(input.Tick);
                 }
@@ -436,11 +443,16 @@ public class Player : NetworkBehaviour
         LatestTickData = tickData;
     }
 
-    [Rpc(SendTo.NotServer)]
+    [Rpc(SendTo.NotServer, Delivery = RpcDelivery.Unreliable)]
     private void SendOtherPlayerTickDataRpc(OtherPlayerTickData tickData)
     {
         if (IsOwner)
             return;
+
+        if (_lastServerTick >= tickData.Tick)
+            return;
+
+        _lastServerTick = tickData.Tick;
 
         var rotation = transform.eulerAngles;
         rotation.y = tickData.RotaionY;
