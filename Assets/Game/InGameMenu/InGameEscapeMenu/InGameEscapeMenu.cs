@@ -19,20 +19,31 @@ public class InGameEscapeMenu : MonoBehaviour
         _quitMatchButton = _root.Q("QuitMatchButton") as Button;
         _closeButton = _root.Q("CloseButton") as Button;
 
-        _quitMatchButton.RegisterCallback((ClickEvent evt) =>
-        {
-            LobbyManager.Singleton.LeaveLobby();
-            NetworkManager.Singleton.Shutdown();
-        });
+        _quitMatchButton.RegisterCallback((ClickEvent evt) => OnQuitMatchButtonPressed());
+        _quitMatchButton.RegisterCallback((NavigationSubmitEvent evt) => OnQuitMatchButtonPressed());
 
-        _closeButton.RegisterCallback((ClickEvent evt) =>
-        {
-            SetDocumentVisible(false);
-        });
+        _closeButton.RegisterCallback((ClickEvent evt) => SetDocumentVisible(false));
+        _closeButton.RegisterCallback((NavigationSubmitEvent evt) => SetDocumentVisible(false));
+    }
+
+    public void OnQuitMatchButtonPressed()
+    {
+        UnityEngine.Cursor.lockState = CursorLockMode.None;
+        UnityEngine.Cursor.visible = true;
+
+        LobbyManager.Singleton.LeaveLobby();
+        NetworkManager.Singleton.Shutdown();
     }
 
     public void SetDocumentVisible(bool value)
     {
+        UnityEngine.Cursor.lockState = value ? CursorLockMode.None : CursorLockMode.Locked;
+        UnityEngine.Cursor.visible = value;
+
+        var player = LobbyManager.Singleton.GetLocalUser().Player;
+        if (player != null)
+            player.SetInputActive(!value);
+
         _root.visible = value;
     }
 

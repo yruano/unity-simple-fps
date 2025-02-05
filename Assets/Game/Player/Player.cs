@@ -88,6 +88,7 @@ public class Player : NetworkBehaviour
 
     private PlayerCameraTarget _cameraTarget;
     private CinemachineCamera _cmFirstPersonCamera;
+    private CinemachineInputAxisController _cmInputAxisController;
 
     private InputAction _inputMove;
     private InputAction _inputWeaponShoot;
@@ -131,9 +132,10 @@ public class Player : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (IsHost)
+        if (IsOwner)
         {
             _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
+            _user.Player = this;
         }
 
         // Setup camera target.
@@ -152,6 +154,7 @@ public class Player : NetworkBehaviour
             _cmFirstPersonCamera = Instantiate(PrefabCmFirstPersonCamera);
             _cmFirstPersonCamera.Follow = _cameraTarget.transform;
             _cmFirstPersonCamera.Priority = 1;
+            _cmInputAxisController = _cmFirstPersonCamera.GetComponent<CinemachineInputAxisController>();
 
             // Setup HUD.
             var inGameHud = FindFirstObjectByType<InGameHud>();
@@ -355,6 +358,29 @@ public class Player : NetworkBehaviour
         if (TickBuffer.Count == TickBuffer.Capacity)
             TickBuffer.PopFirst();
         TickBuffer.Add(tickData);
+    }
+
+    public void SetInputActive(bool value)
+    {
+        if (_cmInputAxisController != null)
+        {
+            _cmInputAxisController.enabled = value;
+        }
+
+        if (value)
+        {
+            _inputMove.Enable();
+            _inputWeaponShoot.Enable();
+            _inputWeaponAim.Enable();
+            _inputWeaponReload.Enable();
+        }
+        else
+        {
+            _inputMove.Disable();
+            _inputWeaponShoot.Disable();
+            _inputWeaponAim.Disable();
+            _inputWeaponReload.Disable();
+        }
     }
 
     public void SetPlayerActive(bool value)

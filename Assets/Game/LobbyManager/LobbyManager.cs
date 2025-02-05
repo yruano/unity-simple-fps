@@ -75,6 +75,10 @@ public class LobbyManager : MonoBehaviour
             {
                 LeaveLobby();
             }
+
+            var steamId = UserTransportId[NetworkManager.Singleton.LocalClientId];
+            UserTransportId.Remove(NetworkManager.Singleton.LocalClientId);
+            Users.Remove(steamId);
         };
 
         NetworkManager.Singleton.OnConnectionEvent += (NetworkManager _, ConnectionEventData data) =>
@@ -130,6 +134,11 @@ public class LobbyManager : MonoBehaviour
     public GameUser GetUserBySteamId(ulong steamId)
     {
         return Users[steamId];
+    }
+
+    public GameUser GetLocalUser()
+    {
+        return Users[SteamUser.GetSteamID().m_SteamID];
     }
 
     public void SetJoinedLobbyId(ulong lobbyId)
