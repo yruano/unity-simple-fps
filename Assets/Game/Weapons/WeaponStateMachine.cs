@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using RingBuffer;
 using UnityEngine;
 using Unity.Netcode;
@@ -44,6 +45,12 @@ public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTi
     public abstract uint GetNextState(WeaponStateMachine<TickData> stateMachine, PlayerInput input);
 }
 
+public struct RollbackData
+{
+    public ulong Tick;
+    public Action Rollback;
+}
+
 // NOTE:
 // WeaponState는 Context에 있는 정보만 읽고 써야한다.
 // 그렇지 않으면 Rollback이 제대로 되지 않는다.
@@ -55,10 +62,6 @@ public class WeaponState<TickData> where TickData : struct, IWeaponTickData
     {
         StateMachine = stateMachine;
     }
-
-    public virtual void Rollback<T>(WeaponStateMachine<TickData> stateMachine, T correctTickData)
-    where T : struct, IWeaponTickData
-    { }
 
     public virtual bool IsRestart() => true;
     public virtual bool IsDone() => false;
@@ -77,6 +80,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
 
     public TickData? LatestTickData = null;
     public RingBuffer<TickData> TickBuffer = new(20);
+    public Stack<RollbackData> RollbackBuffer = new();
 
     public void Init(Player player, WeaponContext<TickData> context)
     {
@@ -145,5 +149,17 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
         }
 
         CurrentState.OnStateUpdate(input, deltaTime);
+    }
+
+    public void RollbackTick(ulong tick)
+    {
+        while (RollbackBuffer.Count > 0)
+        {
+            if (RollbackBuffer.Peek().Tick < tick)
+                break;
+
+            var data = RollbackBuffer.Pop();
+            data.Rollback();
+        }
     }
 }

@@ -203,17 +203,6 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
         });
     }
 
-    public override void Rollback<T>(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, T correctTickData)
-    {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
-        if (correctTickData is WeaponTickDataGunPistol correctTickDataGunPistol)
-        {
-            var correctTimerTime = correctTickDataGunPistol.ShootTimer.Time;
-            ctx.ShootTimer.RollbackTo(correctTimerTime);
-            // TODO: 이미 실행된 것들도 올바른 시간으로 되돌려야 함.
-        }
-    }
-
     public override bool IsDone()
     {
         var ctx = StateMachine.Context as WeaponContextGunPistol;
@@ -319,11 +308,6 @@ public class WeaponGunPistol : Weapon
         _stateMachine.CurrentState.OnStateEnter();
     }
 
-    public override void OnUpdate(PlayerInput input, float deltaTime)
-    {
-        _stateMachine.OnUpdate(input, deltaTime);
-    }
-
     public override byte[] GetSerializedTickData(ulong tick)
     {
         return _stateMachine.Context.GetTickData(tick).Serialize();
@@ -334,39 +318,26 @@ public class WeaponGunPistol : Weapon
         _stateMachine.PushTickData(_stateMachine.Context.GetTickData(tick));
     }
 
-    public override void Reconcile()
+    public override void ClearTickData(ulong latestTick)
     {
-        var serverTickDataOpt = _stateMachine.LatestTickData;
-        if (serverTickDataOpt is { } serverTickData)
+        _stateMachine.TickBuffer.Clear();
+    }
+
+    public override void ApplyLatestTickData()
+    {
+        if (_stateMachine.LatestTickData != null)
         {
-            _stateMachine.LatestTickData = null;
-
-            var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Header.Tick);
-            if (i == -1) return;
-
-            var predictedTickData = _stateMachine.TickBuffer[i];
-
-            // Remove old data.
-            _stateMachine.TickBuffer.ConsumeSpan(i + 1);
-
-            // Check prediction.
-            if (!serverTickData.Equals(predictedTickData))
-            {
-                // Rollback.
-                foreach (var tickData in _stateMachine.TickBuffer)
-                {
-                    _stateMachine.Context.States[tickData.GetHeader().StateIndex].Rollback(_stateMachine, serverTickData);
-                }
-
-                // Resimulate.
-                _stateMachine.Context.ApplyTickData(serverTickData);
-                for (var j = 0; j < _player.InputBuffer.Count; ++j)
-                {
-                    var input = _player.InputBuffer[j];
-                    _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
-                    _stateMachine.TickBuffer[j] = _stateMachine.Context.GetTickData(input.Tick);
-                }
-            }
+            _context.ApplyTickData(_stateMachine.LatestTickData);
         }
+    }
+
+    public override void OnUpdate(PlayerInput input, float deltaTime)
+    {
+        _stateMachine.OnUpdate(input, deltaTime);
+    }
+
+    public override void RollbackToTick(ulong tick)
+    {
+        _stateMachine.RollbackTick(tick);
     }
 }

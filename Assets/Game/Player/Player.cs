@@ -346,7 +346,6 @@ public class Player : NetworkBehaviour
 
         // Weapon.
         _weapon = _weapons[tickData.CurrentWeaponType];
-        //TODO: _weapon.ApplyTickData
     }
 
     public void PushTickData(PlayerInput input, PlayerTickData tickData)
@@ -358,6 +357,16 @@ public class Player : NetworkBehaviour
         if (TickBuffer.Count == TickBuffer.Capacity)
             TickBuffer.PopFirst();
         TickBuffer.Add(tickData);
+    }
+
+    public int GetTickDataIndexFromBuffer(ulong tick)
+    {
+        for (var i = 0; i < TickBuffer.Count; ++i)
+        {
+            if (TickBuffer[i].Tick == tick)
+                return i;
+        }
+        return -1;
     }
 
     public void SetInputActive(bool value)
@@ -416,22 +425,21 @@ public class Player : NetworkBehaviour
         }
     }
 
+    private bool IsDesync(PlayerTickData serverTickData, PlayerTickData predictedTickData)
+    {
+        return
+            serverTickData.HealthMax != predictedTickData.HealthMax ||
+            serverTickData.Health != predictedTickData.Health ||
+            serverTickData.Position != predictedTickData.Position;
+    }
+
     private void Reconcile()
     {
-        var serverTickDataOpt = LatestTickData;
-        if (serverTickDataOpt is { } serverTickData)
+        if (LatestTickData is { } serverTickData)
         {
             LatestTickData = null;
 
-            var i = -1;
-            for (var j = 0; j < TickBuffer.Count; ++j)
-            {
-                if (TickBuffer[j].Tick == serverTickData.Tick)
-                {
-                    i = j;
-                    break;
-                }
-            }
+            var i = GetTickDataIndexFromBuffer(serverTickData.Tick);
             if (i == -1) return;
 
             var predictedTickData = TickBuffer[i];
@@ -441,35 +449,38 @@ public class Player : NetworkBehaviour
             TickBuffer.RemoveFrontItems(i + 1);
 
             // Check prediction.
-            bool isDesync =
-                serverTickData.HealthMax != predictedTickData.HealthMax ||
-                serverTickData.Health != predictedTickData.Health ||
-                serverTickData.Position != predictedTickData.Position;
-
-            if (isDesync)
+            if (IsDesync(serverTickData, predictedTickData))
             {
                 Debug.Log("prediction failed");
 
-                // TODO:
                 // Rollback.
                 for (var j = TickBuffer.Count - 1; j > i; --j)
                 {
-                    // 틱을 이용해서 상태를 돌아야함.
-                    var weapon = _weapons[TickBuffer[j].CurrentWeaponType];
                     var tick = TickBuffer[j].Tick;
-                    // weapon에서 tick 시점의 상태의 시작 틱을 가져옴.
-                    // 만약에 시작틱이 serverTickData.Tick보다 크면 그 상태 전체를 롤백하고 그 상태의 틱들은 넘어감.
-                    // stack 구조로 상태가 한 일을 저장해놓고 pop하면서 취소해야함.
-                    // 아니라면 상태의 일부를 롤백함.
+                    if (tick < serverTickData.Tick)
+                        break;
+
+                    var weapon = _weapons[TickBuffer[j].CurrentWeaponType];
+                    weapon.RollbackToTick(tick);
                 }
 
-                // Resimulate.
+                // Clear weapons tick data.
+                foreach (var weapon in _weapons.Values)
+                    weapon.ClearTickData(serverTickData.Tick);
+
+                // Apply latest state.
                 ApplyTickData(serverTickData);
+                _weapon.ApplyLatestTickData();
+                // FIXME: 이 틱에서 실행한 것들이 다시 실행되어야 함.
+
+                // Resimulate.
                 for (var j = 0; j < InputBuffer.Count; ++j)
                 {
                     var input = InputBuffer[j];
                     OnUpdate(input, Time.fixedDeltaTime);
                     TickBuffer[j] = GetTickData(input.Tick);
+                    _weapon.PushCurrentTickData(input.Tick);
+                    // TODO: 애니메이션이랑 이펙트도 업데이트
                 }
             }
             else

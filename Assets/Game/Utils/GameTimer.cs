@@ -48,18 +48,6 @@ public struct GameTimer : INetworkSerializable
         CallbackIndex = 0;
     }
 
-    public void RollbackTo(float time)
-    {
-        for (var i = Callbacks.Count - 1; i >= 0; --i)
-        {
-            var callback = Callbacks[i];
-            if (callback.TriggerTime < time)
-                break;
-
-            callback.OnCancel?.Invoke();
-        }
-    }
-
     public Callback AddCallback(float triggerTime, Action onCallback, Action onCancel = null)
     {
         var callback = new Callback { TriggerTime = triggerTime, OnCallback = onCallback, OnCancel = onCancel };

@@ -227,13 +227,12 @@ public class LobbyListMenu : MonoBehaviour
         // Setup LobbyChatTextField.
         _lobbyChatTextField.RegisterCallback<ChangeEvent<string>>((evt) =>
         {
-            if (string.IsNullOrEmpty(evt.newValue))
+            if (string.IsNullOrEmpty(evt.newValue) || LobbyChatManager == null)
                 return;
 
-            // TODO: store name in a singleton
-            var name = SteamFriends.GetPersonaName();
+            var name = LobbyManager.Singleton.GetLocalUser().Name;
             var message = evt.newValue;
-            LobbyChatManager?.SendMessage(name, message);
+            LobbyChatManager.SendMessage(name, message);
             _lobbyChatTextField.value = "";
         });
 
