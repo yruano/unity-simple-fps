@@ -132,7 +132,7 @@ public class Player : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (IsOwner)
+        if (IsHost || IsOwner)
         {
             _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
             _user.Player = this;
