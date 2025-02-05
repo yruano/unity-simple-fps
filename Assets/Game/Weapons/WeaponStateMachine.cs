@@ -18,7 +18,6 @@ public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 {
     public ulong Type;
     public ulong Tick;
-    public ulong StateStartTick;
     public uint StateIndex;
 }
 
@@ -27,7 +26,6 @@ public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTi
     public WeaponStateMachine<TickData> StateMachine;
     public WeaponState<TickData>[] States;
     public ulong CommonFlags;
-    public ulong PrevStateStartTick;
     public uint CurrentStateIndex;
 
     public virtual void Init(WeaponStateMachine<TickData> stateMachine)
@@ -76,7 +74,6 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
     public Player Player;
     public WeaponContext<TickData> Context;
     public WeaponState<TickData> CurrentState;
-    public bool IsStateStartedThisFrame { get; private set; } = false;
 
     public TickData? LatestTickData = null;
     public RingBuffer<TickData> TickBuffer = new(20);
@@ -120,8 +117,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
             return;
         }
 
-        IsStateStartedThisFrame = false;
-
+        // TODO: TickData에서 이전 상태 인덱스를 보내줘야 함.
         var nextState = Context.GetNextState(this, input);
         if (nextState != 0)
         {
@@ -131,7 +127,6 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
                 {
                     CurrentState.OnStateExit();
                     CurrentState.OnStateEnter();
-                    IsStateStartedThisFrame = true;
                 }
             }
             else
@@ -139,13 +134,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
                 CurrentState.OnStateExit();
                 SetCurrentState(nextState);
                 CurrentState.OnStateEnter();
-                IsStateStartedThisFrame = true;
             }
-        }
-
-        if (IsStateStartedThisFrame)
-        {
-            Context.PrevStateStartTick = input.Tick;
         }
 
         CurrentState.OnStateUpdate(input, deltaTime);

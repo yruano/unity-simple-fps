@@ -415,12 +415,15 @@ public class Player : NetworkBehaviour
     {
         if (!IsDead)
         {
+            // Character Rotate.
             var rotation = transform.eulerAngles;
             rotation.y = input.InputRotaionY;
             transform.eulerAngles = rotation;
 
+            // Character movement.
             Movement(input.InputWalkDir, deltaTime);
 
+            // Update weapon.
             _weapon.OnUpdate(input, deltaTime);
         }
     }
@@ -471,7 +474,9 @@ public class Player : NetworkBehaviour
                 // Apply latest state.
                 ApplyTickData(serverTickData);
                 _weapon.ApplyLatestTickData();
-                // FIXME: 이 틱에서 실행한 것들이 다시 실행되어야 함.
+                // TODO:
+                // 서버가 배열열 위치와 회전값, 애니/이펙트/사운드 ID, 소환 또는 삭제 정보를 전송함
+                // 클라는 그 정보를 받아서 실행함.
 
                 // Resimulate.
                 for (var j = 0; j < InputBuffer.Count; ++j)
@@ -480,7 +485,7 @@ public class Player : NetworkBehaviour
                     OnUpdate(input, Time.fixedDeltaTime);
                     TickBuffer[j] = GetTickData(input.Tick);
                     _weapon.PushCurrentTickData(input.Tick);
-                    // TODO: 애니메이션이랑 이펙트도 업데이트
+                    // TODO: 애니, 이펙트, 사운드 시간 진행
                 }
             }
             else

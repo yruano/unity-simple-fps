@@ -17,8 +17,7 @@ public abstract class Weapon : MonoBehaviour
 
     public abstract void ClearTickData(ulong latestTick);
     public abstract void ApplyLatestTickData();
+    public abstract void RollbackToTick(ulong tick);
 
     public abstract void OnUpdate(PlayerInput input, float deltaTime);
-
-    public abstract void RollbackToTick(ulong tick);
 }

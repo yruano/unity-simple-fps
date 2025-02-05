@@ -2,7 +2,6 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using Unity.Netcode;
-using RingBuffer;
 
 public struct WeaponTickDataGunPistol : IWeaponTickData
 {
@@ -95,7 +94,6 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
             {
                 Type = (ulong)WeaponType.GunPistol,
                 Tick = tick,
-                StateStartTick = StateMachine.IsStateStartedThisFrame ? tick : PrevStateStartTick,
                 StateIndex = CurrentStateIndex,
             },
             MagazineSize = MagazineSize,
@@ -109,7 +107,6 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
     {
         if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
         {
-            PrevStateStartTick = tickDataGunPistol.Header.StateStartTick; // REVIEW: 이게 맞나??
             CurrentStateIndex = tickDataGunPistol.Header.StateIndex;
             MagazineSize = tickDataGunPistol.MagazineSize;
             AmmoCount = tickDataGunPistol.AmmoCount;
@@ -331,13 +328,13 @@ public class WeaponGunPistol : Weapon
         }
     }
 
-    public override void OnUpdate(PlayerInput input, float deltaTime)
-    {
-        _stateMachine.OnUpdate(input, deltaTime);
-    }
-
     public override void RollbackToTick(ulong tick)
     {
         _stateMachine.RollbackTick(tick);
+    }
+
+    public override void OnUpdate(PlayerInput input, float deltaTime)
+    {
+        _stateMachine.OnUpdate(input, deltaTime);
     }
 }
