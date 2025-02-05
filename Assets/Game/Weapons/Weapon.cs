@@ -2,14 +2,18 @@ using UnityEngine;
 
 public abstract class Weapon : MonoBehaviour
 {
-    protected Player _player;
-    protected ulong _tick = 0;
-    protected ulong _delayTick = 0;
-    protected bool _startTick = false;
-    protected bool _tickSpeedUp = false;
-    protected bool _tickSlowDown = false;
+    [HideInInspector] public WeaponType WeaponType;
 
-    public abstract void Init(Player player);
+    protected Player _player;
+
+    public abstract Weapon Init(Player player);
+
     public abstract void ResetWeapon();
     public abstract void SetLatestTickData<T>(T tickData) where T : struct, IWeaponTickData;
+    public abstract void SetStateToIdle();
+
+    public abstract void OnUpdate(PlayerInput input, float deltaTime);
+    public abstract byte[] GetSerializedTickData(ulong tick);
+    public abstract void PushCurrentTickData(ulong tick);
+    public abstract void Reconcile();
 }

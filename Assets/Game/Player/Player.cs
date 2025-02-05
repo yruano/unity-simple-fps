@@ -12,12 +12,26 @@ public struct PlayerInput : INetworkSerializable
     public ulong Tick;
     public float InputRotaionY;
     public Vector2 InputWalkDir;
+    public Vector3 InputCameraDir;
+    public bool InputDownWeaponShoot;
+    public bool InputHoldWeaponAim;
+    public bool InputDownWeaponReload;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
         serializer.SerializeValue(ref Tick);
         serializer.SerializeValue(ref InputRotaionY);
         serializer.SerializeValue(ref InputWalkDir);
+        serializer.SerializeValue(ref InputCameraDir);
+        serializer.SerializeValue(ref InputDownWeaponShoot);
+        serializer.SerializeValue(ref InputHoldWeaponAim);
+        serializer.SerializeValue(ref InputDownWeaponReload);
+    }
+
+    public void ResetInputDown()
+    {
+        InputDownWeaponShoot = false;
+        InputDownWeaponReload = false;
     }
 }
 
@@ -28,6 +42,7 @@ public struct PlayerTickData : INetworkSerializable
     public int Health;
     public float VelocityY;
     public Vector3 Position;
+    public WeaponType CurrentWeaponType;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
@@ -36,6 +51,7 @@ public struct PlayerTickData : INetworkSerializable
         serializer.SerializeValue(ref Health);
         serializer.SerializeValue(ref VelocityY);
         serializer.SerializeValue(ref Position);
+        serializer.SerializeValue(ref CurrentWeaponType);
     }
 }
 
@@ -62,7 +78,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private float WalkSpeed = 4.0f;
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
     [SerializeField] private PlayerCameraTarget PrefabPlayerCameraTarget;
-    [SerializeField] private Weapon PrefabWeaponPistol;
+    [SerializeField] private Weapon PrefabWeaponGunPistol;
 
     private GameUser _user;
 
@@ -70,13 +86,16 @@ public class Player : NetworkBehaviour
     private Collider _collider;
     private CharacterController _characterController;
 
-    private InputAction _inputMove;
-
     private PlayerCameraTarget _cameraTarget;
     private CinemachineCamera _cmFirstPersonCamera;
 
+    private InputAction _inputMove;
+    private InputAction _inputWeaponShoot;
+    private InputAction _inputWeaponAim;
+    private InputAction _inputWeaponReload;
+
+    private Dictionary<WeaponType, Weapon> _weapons = new();
     private Weapon _weapon;
-    public Queue<WeaponInput> RecivedWeaponInputs = new();
 
     public bool IsDead { get; private set; } = false;
     [CreateProperty] public int HealthMax { get; private set; } = 100;
@@ -103,6 +122,11 @@ public class Player : NetworkBehaviour
         _characterController = GetComponent<CharacterController>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
+        _inputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
+        _inputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
+        _inputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
+
+        Health = HealthMax;
     }
 
     public override void OnNetworkSpawn()
@@ -110,7 +134,6 @@ public class Player : NetworkBehaviour
         if (IsHost)
         {
             _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
-            Health = HealthMax;
         }
 
         // Setup camera target.
@@ -120,8 +143,8 @@ public class Player : NetworkBehaviour
         _cameraTarget.TeleportToTarget();
 
         // Setup weapon.
-        _weapon = Instantiate(PrefabWeaponPistol);
-        _weapon.Init(this);
+        _weapons.Add(WeaponType.GunPistol, Instantiate(PrefabWeaponGunPistol).Init(this));
+        _weapon = _weapons[WeaponType.GunPistol];
 
         if (IsOwner)
         {
@@ -157,6 +180,11 @@ public class Player : NetworkBehaviour
         if (!IsSpawned)
             return;
 
+        if (IsHost)
+        {
+            CheckDeath();
+        }
+
         if (IsOwner)
         {
             _tick += 1;
@@ -167,6 +195,10 @@ public class Player : NetworkBehaviour
                 Tick = _tick,
                 InputRotaionY = _cmFirstPersonCamera.transform.eulerAngles.y,
                 InputWalkDir = _inputMove.ReadValue<Vector2>(),
+                InputCameraDir = GetCameraDir(),
+                InputDownWeaponShoot = _inputWeaponShoot.WasPressedThisFrame(),
+                InputHoldWeaponAim = _inputWeaponAim.IsPressed(),
+                InputDownWeaponReload = _inputWeaponReload.WasPressedThisFrame(),
             };
 
             if (IsHost)
@@ -183,15 +215,11 @@ public class Player : NetworkBehaviour
 
                 // Store tick data.
                 PushTickData(input, GetTickData(_tick));
+                _weapon.PushCurrentTickData(_tick);
 
                 // Reconclie.
                 Reconcile();
             }
-        }
-
-        if (IsHost)
-        {
-            CheckDeath();
         }
 
         if (IsHost && !IsOwner)
@@ -201,10 +229,9 @@ public class Player : NetworkBehaviour
                 _startTick = true;
             }
 
-            ulong lastProcessedTick = 0;
             if (_startTick)
             {
-                Debug.Log(RecivedPlayerInputs.Count);
+                ulong lastProcessedTick = 0;
                 if (RecivedPlayerInputs.Count > 0)
                 {
                     // Stop tick speed up / down.
@@ -233,6 +260,8 @@ public class Player : NetworkBehaviour
                 }
                 else
                 {
+                    // Simulate using the last input.
+                    LastPlayerInput.ResetInputDown();
                     OnUpdate(LastPlayerInput, Time.fixedDeltaTime);
                 }
 
@@ -241,11 +270,13 @@ public class Player : NetworkBehaviour
                 if (lastProcessedTick != 0)
                 {
                     _delayTick = 0;
-                    SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick));
+                    var tick = lastProcessedTick;
+                    SendPlayerTickDataToOwnerRpc(GetTickData(tick), _weapon.GetSerializedTickData(tick));
                 }
                 else
                 {
-                    SendPlayerTickDataToOwnerRpc(GetTickData(lastProcessedTick + _delayTick));
+                    var tick = lastProcessedTick + _delayTick;
+                    SendPlayerTickDataToOwnerRpc(GetTickData(tick), _weapon.GetSerializedTickData(tick));
                 }
             }
         }
@@ -309,6 +340,10 @@ public class Player : NetworkBehaviour
         _characterController.enabled = false;
         transform.position = tickData.Position;
         _characterController.enabled = true;
+
+        // Weapon.
+        _weapon = _weapons[tickData.CurrentWeaponType];
+        //TODO: _weapon.ApplyTickData
     }
 
     public void PushTickData(PlayerInput input, PlayerTickData tickData)
@@ -318,7 +353,7 @@ public class Player : NetworkBehaviour
         InputBuffer.Add(input);
 
         if (TickBuffer.Count == TickBuffer.Capacity)
-            InputBuffer.PopFirst();
+            TickBuffer.PopFirst();
         TickBuffer.Add(tickData);
     }
 
@@ -331,9 +366,6 @@ public class Player : NetworkBehaviour
 
     private void Movement(Vector2 inputWalkDir, float deltaTime)
     {
-        if (IsDead)
-            return;
-
         var forwardSpeed = inputWalkDir.y * WalkSpeed * deltaTime;
         var rightSpeed = inputWalkDir.x * WalkSpeed * deltaTime;
         _velocityY = _characterController.isGrounded ? 0 : (_velocityY + -10f * deltaTime);
@@ -346,11 +378,16 @@ public class Player : NetworkBehaviour
 
     private void OnUpdate(PlayerInput input, float deltaTime)
     {
-        var rotation = transform.eulerAngles;
-        rotation.y = input.InputRotaionY;
-        transform.eulerAngles = rotation;
+        if (!IsDead)
+        {
+            var rotation = transform.eulerAngles;
+            rotation.y = input.InputRotaionY;
+            transform.eulerAngles = rotation;
 
-        Movement(input.InputWalkDir, deltaTime);
+            Movement(input.InputWalkDir, deltaTime);
+
+            _weapon.OnUpdate(input, deltaTime);
+        }
     }
 
     private void Reconcile()
@@ -374,8 +411,8 @@ public class Player : NetworkBehaviour
             var predictedTickData = TickBuffer[i];
 
             // Remove old data.
-            InputBuffer.ConsumeSpan(i + 1);
-            TickBuffer.ConsumeSpan(i + 1);
+            InputBuffer.RemoveFrontItems(i + 1);
+            TickBuffer.RemoveFrontItems(i + 1);
 
             // Check prediction.
             bool isDesync =
@@ -386,6 +423,19 @@ public class Player : NetworkBehaviour
             if (isDesync)
             {
                 Debug.Log("prediction failed");
+
+                // TODO:
+                // Rollback.
+                for (var j = TickBuffer.Count - 1; j > i; --j)
+                {
+                    // 틱을 이용해서 상태를 돌아야함.
+                    var weapon = _weapons[TickBuffer[j].CurrentWeaponType];
+                    var tick = TickBuffer[j].Tick;
+                    // weapon에서 tick 시점의 상태의 시작 틱을 가져옴.
+                    // 만약에 시작틱이 serverTickData.Tick보다 크면 그 상태 전체를 롤백하고 그 상태의 틱들은 넘어감.
+                    // stack 구조로 상태가 한 일을 저장해놓고 pop하면서 취소해야함.
+                    // 아니라면 상태의 일부를 롤백함.
+                }
 
                 // Resimulate.
                 ApplyTickData(serverTickData);
@@ -437,6 +487,18 @@ public class Player : NetworkBehaviour
         Health = Mathf.Clamp(Health + value, 0, HealthMax);
     }
 
+    public void ChangeWeapon(WeaponType weaponType)
+    {
+        if (_weapon.WeaponType == weaponType)
+            return;
+
+        if (_weapons.ContainsKey(weaponType))
+        {
+            _weapon.SetStateToIdle();
+            _weapon = _weapons[weaponType];
+        }
+    }
+
     [Rpc(SendTo.Everyone)]
     private void PlayerRespawnRpc()
     {
@@ -457,9 +519,27 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.Owner)]
-    private void SendPlayerTickDataToOwnerRpc(PlayerTickData tickData)
+    private void SendPlayerTickDataToOwnerRpc(PlayerTickData tickData, byte[] weaponTickData)
     {
         LatestTickData = tickData;
+
+        var reader = new FastBufferReader(weaponTickData, Unity.Collections.Allocator.Temp);
+        if (!reader.TryBeginRead(weaponTickData.Length))
+        {
+            throw new OverflowException("Not enough space in the buffer");
+        }
+
+        using (reader)
+        {
+            reader.ReadValue(out WeaponTickDataHeader header);
+            var weaponType = (WeaponType)header.Type;
+            switch (weaponType)
+            {
+                case WeaponType.GunPistol:
+                    _weapons[weaponType].SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(header, reader));
+                    break;
+            }
+        }
     }
 
     [Rpc(SendTo.NotServer, Delivery = RpcDelivery.Unreliable)]
@@ -485,32 +565,5 @@ public class Player : NetworkBehaviour
     public void SendPlayerInputToServerRpc(PlayerInput input)
     {
         RecivedPlayerInputs.Enqueue(input);
-    }
-
-    [Rpc(SendTo.Server)]
-    public void SendWeaponInputToServerRpc(WeaponInput input)
-    {
-        RecivedWeaponInputs.Enqueue(input);
-    }
-
-    [Rpc(SendTo.Owner)]
-    public void SendWeaponStateToOwnerRpc(byte[] weaponTickData)
-    {
-        var reader = new FastBufferReader(weaponTickData, Unity.Collections.Allocator.Temp);
-        if (!reader.TryBeginRead(weaponTickData.Length))
-        {
-            throw new OverflowException("Not enough space in the buffer");
-        }
-
-        using (reader)
-        {
-            reader.ReadValue(out WeaponTickDataHeader header);
-            switch ((WeaponTickDataType)header.Type)
-            {
-                case WeaponTickDataType.GunPistol:
-                    _weapon.SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(header, reader));
-                    break;
-            }
-        }
     }
 }

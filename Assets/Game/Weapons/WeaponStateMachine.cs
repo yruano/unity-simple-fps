@@ -1,35 +1,9 @@
 using System;
-using System.Collections.Generic;
 using RingBuffer;
-using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.InputSystem;
+using Unity.Netcode;
 
-public struct WeaponInput : INetworkSerializable
-{
-    public ulong Tick;
-    public Vector3 InputCameraDir;
-    public bool InputDownWeaponShoot;
-    public bool InputHoldWeaponAim;
-    public bool InputDownWeaponReload;
-
-    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-    {
-        serializer.SerializeValue(ref Tick);
-        serializer.SerializeValue(ref InputCameraDir);
-        serializer.SerializeValue(ref InputDownWeaponShoot);
-        serializer.SerializeValue(ref InputHoldWeaponAim);
-        serializer.SerializeValue(ref InputDownWeaponReload);
-    }
-
-    public void ResetInputDown()
-    {
-        InputDownWeaponShoot = false;
-        InputDownWeaponReload = false;
-    }
-}
-
-public enum WeaponTickDataType : ulong
+public enum WeaponType : uint
 {
     GunPistol,
 }
@@ -43,27 +17,21 @@ public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 {
     public ulong Type;
     public ulong Tick;
+    public ulong StateStartTick;
     public uint StateIndex;
 }
 
 public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTickData
 {
+    public WeaponStateMachine<TickData> StateMachine;
     public WeaponState<TickData>[] States;
-    public uint CurrentStateIndex;
     public ulong CommonFlags;
-
-    public InputAction InputWeaponShoot;
-    public InputAction InputWeaponAim;
-    public InputAction InputWeaponReload;
+    public ulong PrevStateStartTick;
+    public uint CurrentStateIndex;
 
     public virtual void Init(WeaponStateMachine<TickData> stateMachine)
     {
-        if (stateMachine.Player.IsOwner)
-        {
-            InputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
-            InputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
-            InputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
-        }
+        StateMachine = stateMachine;
     }
 
     public abstract TickData GetTickData(ulong tick);
@@ -73,7 +41,7 @@ public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTi
     {
         return States[(int)(object)index];
     }
-    public abstract uint GetNextState(WeaponStateMachine<TickData> stateMachine, WeaponInput input);
+    public abstract uint GetNextState(WeaponStateMachine<TickData> stateMachine, PlayerInput input);
 }
 
 // NOTE:
@@ -97,7 +65,7 @@ public class WeaponState<TickData> where TickData : struct, IWeaponTickData
 
     public virtual void OnStateEnter() { }
     public virtual void OnStateExit() { }
-    public virtual void OnStateUpdate(WeaponInput input, float deltaTime) { }
+    public virtual void OnStateUpdate(PlayerInput input, float deltaTime) { }
 }
 
 public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickData
@@ -105,9 +73,9 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
     public Player Player;
     public WeaponContext<TickData> Context;
     public WeaponState<TickData> CurrentState;
+    public bool IsStateStartedThisFrame { get; private set; } = false;
 
     public TickData? LatestTickData = null;
-    public RingBuffer<WeaponInput> InputBuffer = new(20);
     public RingBuffer<TickData> TickBuffer = new(20);
 
     public void Init(Player player, WeaponContext<TickData> context)
@@ -123,14 +91,10 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
         CurrentState = Context.States[stateIndex];
     }
 
-    public void PushTickData(WeaponInput input, TickData tickData)
+    public void PushTickData(TickData tickData)
     {
-        if (InputBuffer.Count == InputBuffer.Capacity)
-            InputBuffer.PopFirst();
-        InputBuffer.Add(input);
-
         if (TickBuffer.Count == TickBuffer.Capacity)
-            InputBuffer.PopFirst();
+            TickBuffer.PopFirst();
         TickBuffer.Add(tickData);
     }
 
@@ -144,13 +108,15 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
         return -1;
     }
 
-    public void DoTransition(WeaponInput input)
+    public virtual void OnUpdate(PlayerInput input, float deltaTime)
     {
         if (CurrentState is null)
         {
             Debug.LogError("CurrentState is null");
             return;
         }
+
+        IsStateStartedThisFrame = false;
 
         var nextState = Context.GetNextState(this, input);
         if (nextState != 0)
@@ -161,6 +127,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
                 {
                     CurrentState.OnStateExit();
                     CurrentState.OnStateEnter();
+                    IsStateStartedThisFrame = true;
                 }
             }
             else
@@ -168,20 +135,15 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
                 CurrentState.OnStateExit();
                 SetCurrentState(nextState);
                 CurrentState.OnStateEnter();
+                IsStateStartedThisFrame = true;
             }
         }
 
-    }
-
-    public virtual void OnUpdate(WeaponInput input, float deltaTime)
-    {
-        if (CurrentState is null)
+        if (IsStateStartedThisFrame)
         {
-            Debug.LogError("CurrentState is null");
-            return;
+            Context.PrevStateStartTick = input.Tick;
         }
 
-        DoTransition(input);
         CurrentState.OnStateUpdate(input, deltaTime);
     }
 }

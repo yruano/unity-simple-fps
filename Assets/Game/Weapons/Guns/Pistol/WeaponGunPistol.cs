@@ -93,8 +93,9 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         {
             Header = new WeaponTickDataHeader
             {
-                Type = (ulong)WeaponTickDataType.GunPistol,
+                Type = (ulong)WeaponType.GunPistol,
                 Tick = tick,
+                StateStartTick = StateMachine.IsStateStartedThisFrame ? tick : PrevStateStartTick,
                 StateIndex = CurrentStateIndex,
             },
             MagazineSize = MagazineSize,
@@ -108,6 +109,7 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
     {
         if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
         {
+            PrevStateStartTick = tickDataGunPistol.Header.StateStartTick; // REVIEW: 이게 맞나??
             CurrentStateIndex = tickDataGunPistol.Header.StateIndex;
             MagazineSize = tickDataGunPistol.MagazineSize;
             AmmoCount = tickDataGunPistol.AmmoCount;
@@ -120,7 +122,7 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         }
     }
 
-    public override uint GetNextState(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, WeaponInput input)
+    public override uint GetNextState(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, PlayerInput input)
     {
         var ctx = stateMachine.Context as WeaponContextGunPistol;
 
@@ -161,7 +163,7 @@ public class WeaponStateGunPistolIdle : WeaponState<WeaponTickDataGunPistol> { }
 
 public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
 {
-    private WeaponInput _input;
+    private PlayerInput _input;
     private int _damage = 20;
 
     public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
@@ -224,7 +226,7 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
         ctx.ShootTimer.Reset();
     }
 
-    public override void OnStateUpdate(WeaponInput input, float deltaTime)
+    public override void OnStateUpdate(PlayerInput input, float deltaTime)
     {
         _input = input;
 
@@ -266,7 +268,7 @@ public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
         Debug.Log("reload done");
     }
 
-    public override void OnStateUpdate(WeaponInput input, float deltaTime)
+    public override void OnStateUpdate(PlayerInput input, float deltaTime)
     {
         var ctx = StateMachine.Context as WeaponContextGunPistol;
         ctx.ReloadTimer.Tick(deltaTime);
@@ -277,21 +279,19 @@ public class WeaponGunPistol : Weapon
 {
     private readonly WeaponContextGunPistol _context = new();
     private readonly WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
-    private WeaponInput LastWeaponInput = new();
 
-    public override void Init(Player player)
+    public override Weapon Init(Player player)
     {
+        WeaponType = WeaponType.GunPistol;
         _player = player;
         _stateMachine.Init(player, _context);
+        return this;
     }
 
     public override void ResetWeapon()
     {
-        _tick = 0;
-
         // Reset state machine
         _stateMachine.SetCurrentState((uint)WeaponContextGunPistol.StateIndex.Idle);
-        _stateMachine.InputBuffer.Clear();
         _stateMachine.TickBuffer.Clear();
 
         // Reset context
@@ -312,111 +312,29 @@ public class WeaponGunPistol : Weapon
         }
     }
 
-    private void FixedUpdate()
+    public override void SetStateToIdle()
     {
-        if (!_player.IsSpawned)
-            return;
-
-        if (_player.IsOwner)
-        {
-            if (!_player.IsDead)
-            {
-                _tick += 1;
-
-                // Get user input.
-                var input = new WeaponInput
-                {
-                    Tick = _tick,
-                    InputCameraDir = _player.GetCameraDir(),
-                    InputDownWeaponShoot = _context.InputWeaponShoot.WasPressedThisFrame(),
-                    InputHoldWeaponAim = _context.InputWeaponAim.IsPressed(),
-                    InputDownWeaponReload = _context.InputWeaponReload.WasPressedThisFrame(),
-                };
-
-                if (_stateMachine.Player.IsHost)
-                {
-                    // Run state machine.
-                    _stateMachine.OnUpdate(input, Time.deltaTime);
-                }
-                else
-                {
-                    // Send user input.
-                    _player.SendWeaponInputToServerRpc(input);
-
-                    // Run state machine. (client-side prediction)
-                    _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
-
-                    // Store tick data.
-                    _stateMachine.PushTickData(input, _stateMachine.Context.GetTickData(_tick));
-
-                    // Reconcile.
-                    Reconcile();
-                }
-            }
-        }
-
-        if (_player.IsHost)
-        {
-            if (!_startTick && _player.RecivedWeaponInputs.Count >= 5)
-            {
-                _startTick = true;
-            }
-
-            ulong lastProcessedTick = 0;
-            if (_startTick)
-            {
-                if (_player.RecivedWeaponInputs.Count > 0)
-                {
-                    // Stop tick speed up / down.
-                    if (_player.RecivedWeaponInputs.Count <= 5) _tickSpeedUp = false;
-                    if (_player.RecivedWeaponInputs.Count >= 5) _tickSlowDown = false;
-
-                    // Start tick speed up / down.
-                    if (_player.RecivedWeaponInputs.Count >= 8) _tickSpeedUp = true;
-                    if (_player.RecivedWeaponInputs.Count <= 3) _tickSlowDown = true;
-
-                    if (!_tickSlowDown || _player.RecivedWeaponInputs.Count % 2 == 0)
-                    {
-                        var input = _player.RecivedWeaponInputs.Dequeue();
-                        _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
-                        LastWeaponInput = input;
-                        lastProcessedTick = input.Tick;
-                    }
-
-                    if (_tickSpeedUp && _player.RecivedWeaponInputs.Count % 2 == 0)
-                    {
-                        var input = _player.RecivedWeaponInputs.Dequeue();
-                        _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
-                        LastWeaponInput = input;
-                        lastProcessedTick = input.Tick;
-                    }
-                }
-                else
-                {
-                    LastWeaponInput.ResetInputDown();
-                    _stateMachine.OnUpdate(LastWeaponInput, Time.fixedDeltaTime);
-                }
-
-                // Send state to the client.
-                _delayTick += 1;
-                if (lastProcessedTick != 0)
-                {
-                    _delayTick = 0;
-                    var tickData = _stateMachine.Context.GetTickData(lastProcessedTick);
-                    _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
-                }
-                else
-                {
-                    var tickData = _stateMachine.Context.GetTickData(lastProcessedTick + _delayTick);
-                    _player.SendWeaponStateToOwnerRpc(tickData.Serialize());
-                }
-            }
-
-            // TODO: 다른 캐릭터의 데이터도 동기화 (이펙트랑 애니만??)
-        }
+        _stateMachine.CurrentState.OnStateExit();
+        _stateMachine.SetCurrentState((uint)WeaponContextGunPistol.StateIndex.Idle);
+        _stateMachine.CurrentState.OnStateEnter();
     }
 
-    private void Reconcile()
+    public override void OnUpdate(PlayerInput input, float deltaTime)
+    {
+        _stateMachine.OnUpdate(input, deltaTime);
+    }
+
+    public override byte[] GetSerializedTickData(ulong tick)
+    {
+        return _stateMachine.Context.GetTickData(tick).Serialize();
+    }
+
+    public override void PushCurrentTickData(ulong tick)
+    {
+        _stateMachine.PushTickData(_stateMachine.Context.GetTickData(tick));
+    }
+
+    public override void Reconcile()
     {
         var serverTickDataOpt = _stateMachine.LatestTickData;
         if (serverTickDataOpt is { } serverTickData)
@@ -429,7 +347,6 @@ public class WeaponGunPistol : Weapon
             var predictedTickData = _stateMachine.TickBuffer[i];
 
             // Remove old data.
-            _stateMachine.InputBuffer.ConsumeSpan(i + 1);
             _stateMachine.TickBuffer.ConsumeSpan(i + 1);
 
             // Check prediction.
@@ -443,9 +360,9 @@ public class WeaponGunPistol : Weapon
 
                 // Resimulate.
                 _stateMachine.Context.ApplyTickData(serverTickData);
-                for (var j = 0; j < _stateMachine.InputBuffer.Count; ++j)
+                for (var j = 0; j < _player.InputBuffer.Count; ++j)
                 {
-                    var input = _stateMachine.InputBuffer[j];
+                    var input = _player.InputBuffer[j];
                     _stateMachine.OnUpdate(input, Time.fixedDeltaTime);
                     _stateMachine.TickBuffer[j] = _stateMachine.Context.GetTickData(input.Tick);
                 }
