@@ -535,14 +535,31 @@ public class Player : NetworkBehaviour
         }
     }
 
+    private void OnRespawn()
+    {
+        IsDead = false;
+        Health = HealthMax;
+        SetPlayerActive(true);
+    }
+
     public void Respawn()
     {
         if (!IsDead)
             return;
 
-        IsDead = false;
-        Health = HealthMax;
-        PlayerRespawnRpc();
+        OnRespawn();
+        PlayerOnRespawnRpc();
+    }
+
+    private void OnDeath()
+    {
+        IsDead = true;
+        SetPlayerActive(false);
+
+        if (_weapon)
+        {
+            _weapon.ResetWeapon();
+        }
     }
 
     public void CheckDeath()
@@ -552,8 +569,8 @@ public class Player : NetworkBehaviour
 
         if (Health == 0)
         {
-            IsDead = true;
-            PlayerDeathRpc();
+            OnDeath();
+            PlayerOnDeathRpc();
 
             Invoke(nameof(Respawn), 3.0f);
         }
@@ -581,28 +598,30 @@ public class Player : NetworkBehaviour
         }
     }
 
-    [Rpc(SendTo.Everyone)]
-    private void PlayerRespawnRpc()
+    [Rpc(SendTo.NotServer)]
+    private void PlayerOnRespawnRpc(RpcParams rpcParams = default)
     {
-        IsDead = false;
-        SetPlayerActive(true);
+        if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
+            return;
+
+        OnRespawn();
     }
 
-    [Rpc(SendTo.Everyone)]
-    private void PlayerDeathRpc()
+    [Rpc(SendTo.NotServer)]
+    private void PlayerOnDeathRpc(RpcParams rpcParams = default)
     {
-        IsDead = true;
-        SetPlayerActive(false);
+        if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
+            return;
 
-        if (_weapon)
-        {
-            _weapon.ResetWeapon();
-        }
+        OnDeath();
     }
 
     [Rpc(SendTo.Owner)]
-    private void SendPlayerTickDataToOwnerRpc(PlayerTickData tickData, byte[] weaponTickData)
+    private void SendPlayerTickDataToOwnerRpc(PlayerTickData tickData, byte[] weaponTickData, RpcParams rpcParams = default)
     {
+        if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
+            return;
+
         LatestTickData = tickData;
 
         var reader = new FastBufferReader(weaponTickData, Unity.Collections.Allocator.Temp);
@@ -625,8 +644,11 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.NotServer, Delivery = RpcDelivery.Unreliable)]
-    private void SendOtherPlayerTickDataRpc(OtherPlayerTickData tickData)
+    private void SendOtherPlayerTickDataRpc(OtherPlayerTickData tickData, RpcParams rpcParams = default)
     {
+        if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
+            return;
+
         if (IsOwner)
             return;
 
