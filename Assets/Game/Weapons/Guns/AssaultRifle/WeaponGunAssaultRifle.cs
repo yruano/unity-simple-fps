@@ -94,8 +94,8 @@ public class WeaponContextGunAssaultRifle : WeaponContext<WeaponTickDataGunAssau
         {
             Header = new WeaponTickDataHeader
             {
-                Type = (ulong)WeaponType.GunAssaultRifle,
                 Tick = tick,
+                Type = (uint)WeaponType.GunAssaultRifle,
                 StateIndex = CurrentStateIndex,
             },
             MagazineSize = MagazineSize,
@@ -285,11 +285,11 @@ public class WeaponGunAssaultRifle : Weapon
         _context.ReloadTimer.Reset();
     }
 
-    public override void SetLatestTickData<T>(T tickData)
+    public override void SetLatestTickData(WeaponTickDataHeader header, FastBufferReader reader)
     {
-        if (tickData is WeaponTickDataGunAssaultRifle tickDataGunAssaultRifle)
+        if (header.Type == (uint)WeaponType.GunAssaultRifle)
         {
-            _stateMachine.LatestTickData = tickDataGunAssaultRifle;
+            _stateMachine.LatestTickData = WeaponTickDataGunAssaultRifle.NewFromReader(header, reader);
         }
         else
         {

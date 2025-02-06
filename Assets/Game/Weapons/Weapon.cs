@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.Netcode;
 
 public abstract class Weapon : MonoBehaviour
 {
@@ -9,7 +10,7 @@ public abstract class Weapon : MonoBehaviour
     public abstract Weapon Init(Player player);
 
     public abstract void ResetWeapon();
-    public abstract void SetLatestTickData<T>(T tickData) where T : struct, IWeaponTickData;
+    public abstract void SetLatestTickData(WeaponTickDataHeader header, FastBufferReader reader);
     public abstract void SetStateToIdle();
     public abstract void SetStateToHolster();
 

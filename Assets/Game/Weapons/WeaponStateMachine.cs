@@ -18,8 +18,8 @@ public interface IWeaponTickData
 
 public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 {
-    public ulong Type;
     public ulong Tick;
+    public uint Type;
     public uint StateIndex;
 }
 

@@ -650,24 +650,16 @@ public class Player : NetworkBehaviour
         if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
             return;
 
+        // Set player latest tick data.
         LatestTickData = tickData;
 
         var reader = new FastBufferReader(weaponTickData, Unity.Collections.Allocator.Temp);
-        if (!reader.TryBeginRead(weaponTickData.Length))
-        {
-            throw new OverflowException("Not enough space in the buffer");
-        }
-
+        if (!reader.TryBeginRead(weaponTickData.Length)) throw new OverflowException("Not enough space in the buffer");
         using (reader)
         {
+            // Set weapon latest tick data.
             reader.ReadValue(out WeaponTickDataHeader header);
-            var weaponType = (WeaponType)header.Type;
-            switch (weaponType)
-            {
-                case WeaponType.GunPistol:
-                    _weapons[weaponType].SetLatestTickData(WeaponTickDataGunPistol.NewFromReader(header, reader));
-                    break;
-            }
+            _weapons[(WeaponType)header.Type].SetLatestTickData(header, reader);
         }
     }
 

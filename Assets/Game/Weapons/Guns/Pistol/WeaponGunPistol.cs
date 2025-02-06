@@ -94,8 +94,8 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         {
             Header = new WeaponTickDataHeader
             {
-                Type = (ulong)WeaponType.GunPistol,
                 Tick = tick,
+                Type = (uint)WeaponType.GunPistol,
                 StateIndex = CurrentStateIndex,
             },
             MagazineSize = MagazineSize,
@@ -285,11 +285,11 @@ public class WeaponGunPistol : Weapon
         _context.ReloadTimer.Reset();
     }
 
-    public override void SetLatestTickData<T>(T tickData)
+    public override void SetLatestTickData(WeaponTickDataHeader header, FastBufferReader reader)
     {
-        if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
+        if (header.Type == (uint)WeaponType.GunPistol)
         {
-            _stateMachine.LatestTickData = tickDataGunPistol;
+            _stateMachine.LatestTickData = WeaponTickDataGunPistol.NewFromReader(header, reader);
         }
         else
         {
