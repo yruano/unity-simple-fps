@@ -84,9 +84,12 @@ public class LobbyManager : MonoBehaviour
             {
                 case ConnectionEvent.PeerDisconnected:
                     Debug.Log($"[NetworkManager] PeerDisconnected: {data.ClientId}");
-                    var steamId = UserTransportId[data.ClientId];
-                    UserTransportId.Remove(data.ClientId);
-                    Users.Remove(steamId);
+                    if (UserTransportId.ContainsKey(data.ClientId))
+                    {
+                        var steamId = UserTransportId[data.ClientId];
+                        UserTransportId.Remove(data.ClientId);
+                        Users.Remove(steamId);
+                    }
                     break;
             }
         };
