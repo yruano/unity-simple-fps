@@ -13,7 +13,9 @@ public struct PlayerInput : INetworkSerializable
     public float InputRotaionY;
     public Vector3 InputCameraDir;
     public Vector2 InputWalkDir;
+    public bool InputDownWeaponSwap;
     public bool InputDownWeaponShoot;
+    public bool InputHoldWeaponShoot;
     public bool InputHoldWeaponAim;
     public bool InputDownWeaponReload;
 
@@ -23,13 +25,16 @@ public struct PlayerInput : INetworkSerializable
         serializer.SerializeValue(ref InputRotaionY);
         serializer.SerializeValue(ref InputCameraDir);
         serializer.SerializeValue(ref InputWalkDir);
+        serializer.SerializeValue(ref InputDownWeaponSwap);
         serializer.SerializeValue(ref InputDownWeaponShoot);
+        serializer.SerializeValue(ref InputHoldWeaponShoot);
         serializer.SerializeValue(ref InputHoldWeaponAim);
         serializer.SerializeValue(ref InputDownWeaponReload);
     }
 
     public void ResetInputDown()
     {
+        InputDownWeaponSwap = false;
         InputDownWeaponShoot = false;
         InputDownWeaponReload = false;
     }
@@ -79,6 +84,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private CinemachineCamera PrefabCmFirstPersonCamera;
     [SerializeField] private PlayerCameraTarget PrefabPlayerCameraTarget;
     [SerializeField] private Weapon PrefabWeaponGunPistol;
+    [SerializeField] private Weapon PrefabWeaponGunAssaultRifle;
 
     private GameUser _user;
 
@@ -94,6 +100,7 @@ public class Player : NetworkBehaviour
 
     // Inputs
     private InputAction _inputMove;
+    private InputAction _inputWeaponSwap;
     private InputAction _inputWeaponShoot;
     private InputAction _inputWeaponAim;
     private InputAction _inputWeaponReload;
@@ -107,6 +114,7 @@ public class Player : NetworkBehaviour
     // Weapons
     private Dictionary<WeaponType, Weapon> _weapons = new();
     private Weapon _weapon;
+    private WeaponType _weaponSwapTarget = WeaponType.None;
 
     // Networking
     private ulong _tick = 0;
@@ -129,6 +137,7 @@ public class Player : NetworkBehaviour
         _characterController = GetComponent<CharacterController>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
+        _inputWeaponSwap = InputSystem.actions.FindAction("Player/WeaponSwap");
         _inputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
         _inputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
         _inputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
@@ -140,7 +149,6 @@ public class Player : NetworkBehaviour
     {
         if (IsHost || IsOwner)
         {
-            Debug.Log("OnNetworkSpawn");
             _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
             _user.Player = this;
             SetInputActive(true);
@@ -152,8 +160,9 @@ public class Player : NetworkBehaviour
         _cameraTarget.Offset = Vector3.up * 0.5f;
         _cameraTarget.TeleportToTarget();
 
-        // Setup weapon.
+        // Setup weapons.
         _weapons.Add(WeaponType.GunPistol, Instantiate(PrefabWeaponGunPistol).Init(this));
+        _weapons.Add(WeaponType.GunAssaultRifle, Instantiate(PrefabWeaponGunAssaultRifle).Init(this));
         _weapon = _weapons[WeaponType.GunPistol];
 
         if (IsOwner)
@@ -207,7 +216,9 @@ public class Player : NetworkBehaviour
                 InputRotaionY = _cmFirstPersonCamera.transform.eulerAngles.y,
                 InputCameraDir = GetCameraDir(),
                 InputWalkDir = _inputMove.ReadValue<Vector2>(),
+                InputDownWeaponSwap = _inputWeaponSwap.WasPressedThisFrame(),
                 InputDownWeaponShoot = _inputWeaponShoot.WasPressedThisFrame(),
+                InputHoldWeaponShoot = _inputWeaponShoot.IsPressed(),
                 InputHoldWeaponAim = _inputWeaponAim.IsPressed(),
                 InputDownWeaponReload = _inputWeaponReload.WasPressedThisFrame(),
             };
@@ -436,6 +447,23 @@ public class Player : NetworkBehaviour
 
             // Character movement.
             Movement(input.InputWalkDir, deltaTime);
+
+            if (_weaponSwapTarget != WeaponType.None)
+            {
+                Debug.Log($"WeaponSwap: {_weaponSwapTarget}");
+                _weapon = _weapons[_weaponSwapTarget];
+                _weaponSwapTarget = WeaponType.None;
+                _weapon.SetStateToIdle();
+            }
+
+            if (input.InputDownWeaponSwap)
+            {
+                _weapon.SetStateToHolster();
+                _weaponSwapTarget =
+                    _weapon.WeaponType == WeaponType.GunPistol
+                    ? WeaponType.GunAssaultRifle
+                    : WeaponType.GunPistol;
+            }
 
             // Update weapon.
             _weapon.OnUpdate(input, deltaTime);

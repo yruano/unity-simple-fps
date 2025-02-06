@@ -6,7 +6,9 @@ using Unity.Netcode;
 
 public enum WeaponType : uint
 {
+    None,
     GunPistol,
+    GunAssaultRifle,
 }
 
 public interface IWeaponTickData

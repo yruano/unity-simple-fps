@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using Unity.Netcode;
 
-public struct WeaponTickDataGunPistol : IWeaponTickData
+public struct WeaponTickDataGunAssaultRifle : IWeaponTickData
 {
     public WeaponTickDataHeader Header;
     public int MagazineSize;
@@ -16,9 +16,9 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
         return Header;
     }
 
-    public static WeaponTickDataGunPistol NewFromReader(WeaponTickDataHeader header, FastBufferReader reader)
+    public static WeaponTickDataGunAssaultRifle NewFromReader(WeaponTickDataHeader header, FastBufferReader reader)
     {
-        var result = new WeaponTickDataGunPistol { Header = header };
+        var result = new WeaponTickDataGunAssaultRifle { Header = header };
         reader.ReadValue(out result.MagazineSize);
         reader.ReadValue(out result.AmmoCount);
         reader.ReadValue(out result.ShootTimer);
@@ -28,7 +28,7 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
 
     public byte[] Serialize()
     {
-        var size = Marshal.SizeOf(typeof(WeaponTickDataGunPistol));
+        var size = Marshal.SizeOf(typeof(WeaponTickDataGunAssaultRifle));
         var writer = new FastBufferWriter(size, Unity.Collections.Allocator.Temp);
         if (!writer.TryBeginWrite(size))
         {
@@ -49,7 +49,7 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
     }
 }
 
-public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
+public class WeaponContextGunAssaultRifle : WeaponContext<WeaponTickDataGunAssaultRifle>
 {
     public enum StateIndex
     {
@@ -60,24 +60,24 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         Reload,
     }
 
-    public int MagazineSize = 7;
+    public int MagazineSize = 20;
     public int AmmoCount;
-    public GameTimer ShootTimer = new(0.3f);
+    public GameTimer ShootTimer = new(0.1f);
     public GameTimer ReloadTimer = new(1.0f);
 
-    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
+    public override void Init(WeaponStateMachine<WeaponTickDataGunAssaultRifle> stateMachine)
     {
         base.Init(stateMachine);
 
         AmmoCount = MagazineSize;
 
-        States = new WeaponState<WeaponTickDataGunPistol>[]
+        States = new WeaponState<WeaponTickDataGunAssaultRifle>[]
         {
             null,
-            new WeaponStateGunPistolIdle(),
-            new WeaponStateGunPistolHolster(),
-            new WeaponStateGunPistolShoot(),
-            new WeaponStateGunPistolReload(),
+            new WeaponStateGunAssaultRifleIdle(),
+            new WeaponStateGunAssaultRifleHolster(),
+            new WeaponStateGunAssaultRifleShoot(),
+            new WeaponStateGunAssaultRifleReload(),
         };
 
         foreach (var state in States)
@@ -88,13 +88,13 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         stateMachine.SetCurrentState((int)StateIndex.Idle);
     }
 
-    public override WeaponTickDataGunPistol GetTickData(ulong tick)
+    public override WeaponTickDataGunAssaultRifle GetTickData(ulong tick)
     {
-        return new WeaponTickDataGunPistol
+        return new WeaponTickDataGunAssaultRifle
         {
             Header = new WeaponTickDataHeader
             {
-                Type = (ulong)WeaponType.GunPistol,
+                Type = (ulong)WeaponType.GunAssaultRifle,
                 Tick = tick,
                 StateIndex = CurrentStateIndex,
             },
@@ -107,13 +107,13 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
 
     public override void ApplyTickData<T>(T tickData)
     {
-        if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
+        if (tickData is WeaponTickDataGunAssaultRifle tickDataGunAssaultRifle)
         {
-            CurrentStateIndex = tickDataGunPistol.Header.StateIndex;
-            MagazineSize = tickDataGunPistol.MagazineSize;
-            AmmoCount = tickDataGunPistol.AmmoCount;
-            ShootTimer.CopyWithoutCallbacks(tickDataGunPistol.ShootTimer);
-            ReloadTimer.CopyWithoutCallbacks(tickDataGunPistol.ReloadTimer);
+            CurrentStateIndex = tickDataGunAssaultRifle.Header.StateIndex;
+            MagazineSize = tickDataGunAssaultRifle.MagazineSize;
+            AmmoCount = tickDataGunAssaultRifle.AmmoCount;
+            ShootTimer.CopyWithoutCallbacks(tickDataGunAssaultRifle.ShootTimer);
+            ReloadTimer.CopyWithoutCallbacks(tickDataGunAssaultRifle.ReloadTimer);
         }
         else
         {
@@ -121,14 +121,14 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
         }
     }
 
-    public override uint GetNextState(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine, PlayerInput input)
+    public override uint GetNextState(WeaponStateMachine<WeaponTickDataGunAssaultRifle> stateMachine, PlayerInput input)
     {
-        var ctx = stateMachine.Context as WeaponContextGunPistol;
+        var ctx = stateMachine.Context as WeaponContextGunAssaultRifle;
 
         switch (ctx.CurrentStateIndex)
         {
             case (uint)StateIndex.Idle:
-                if (ctx.AmmoCount > 0 && input.InputDownWeaponShoot)
+                if (ctx.AmmoCount > 0 && input.InputHoldWeaponShoot)
                 {
                     return (uint)StateIndex.Shoot;
                 }
@@ -158,20 +158,20 @@ public class WeaponContextGunPistol : WeaponContext<WeaponTickDataGunPistol>
     }
 }
 
-public class WeaponStateGunPistolIdle : WeaponState<WeaponTickDataGunPistol> { }
+public class WeaponStateGunAssaultRifleIdle : WeaponState<WeaponTickDataGunAssaultRifle> { }
 
-public class WeaponStateGunPistolHolster : WeaponState<WeaponTickDataGunPistol> { }
+public class WeaponStateGunAssaultRifleHolster : WeaponState<WeaponTickDataGunAssaultRifle> { }
 
-public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
+public class WeaponStateGunAssaultRifleShoot : WeaponState<WeaponTickDataGunAssaultRifle>
 {
     private PlayerInput _input;
-    private int _damage = 20;
+    private int _damage = 5;
 
-    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
+    public override void Init(WeaponStateMachine<WeaponTickDataGunAssaultRifle> stateMachine)
     {
         base.Init(stateMachine);
 
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
 
         ctx.ShootTimer.AddCallback(0, () =>
         {
@@ -205,13 +205,13 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
 
     public override bool IsDone()
     {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
         return ctx.ShootTimer.IsEnded;
     }
 
     public override void OnStateExit()
     {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
         ctx.ShootTimer.Reset();
     }
 
@@ -219,18 +219,18 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
     {
         _input = input;
 
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
         ctx.ShootTimer.Tick(deltaTime);
     }
 }
 
-public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
+public class WeaponStateGunAssaultRifleReload : WeaponState<WeaponTickDataGunAssaultRifle>
 {
-    public override void Init(WeaponStateMachine<WeaponTickDataGunPistol> stateMachine)
+    public override void Init(WeaponStateMachine<WeaponTickDataGunAssaultRifle> stateMachine)
     {
         base.Init(stateMachine);
 
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
 
         ctx.ReloadTimer.AddCallback(ctx.ReloadTimer.Duration - 0.2f, () =>
         {
@@ -240,31 +240,31 @@ public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
 
     public override bool IsDone()
     {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
         return ctx.ReloadTimer.IsEnded;
     }
 
     public override void OnStateExit()
     {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
         ctx.ReloadTimer.Reset();
     }
 
     public override void OnStateUpdate(PlayerInput input, float deltaTime)
     {
-        var ctx = StateMachine.Context as WeaponContextGunPistol;
+        var ctx = StateMachine.Context as WeaponContextGunAssaultRifle;
         ctx.ReloadTimer.Tick(deltaTime);
     }
 }
 
-public class WeaponGunPistol : Weapon
+public class WeaponGunAssaultRifle : Weapon
 {
-    private readonly WeaponContextGunPistol _context = new();
-    private readonly WeaponStateMachine<WeaponTickDataGunPistol> _stateMachine = new();
+    private readonly WeaponContextGunAssaultRifle _context = new();
+    private readonly WeaponStateMachine<WeaponTickDataGunAssaultRifle> _stateMachine = new();
 
     public override Weapon Init(Player player)
     {
-        WeaponType = WeaponType.GunPistol;
+        WeaponType = WeaponType.GunAssaultRifle;
         _player = player;
         _stateMachine.Init(player, _context);
         return this;
@@ -273,7 +273,7 @@ public class WeaponGunPistol : Weapon
     public override void ResetWeapon()
     {
         // Reset state machine
-        _stateMachine.SetCurrentState((uint)WeaponContextGunPistol.StateIndex.Idle);
+        _stateMachine.SetCurrentState((uint)WeaponContextGunAssaultRifle.StateIndex.Idle);
         _stateMachine.TickBuffer.Clear();
 
         // Reset context
@@ -284,9 +284,9 @@ public class WeaponGunPistol : Weapon
 
     public override void SetLatestTickData<T>(T tickData)
     {
-        if (tickData is WeaponTickDataGunPistol tickDataGunPistol)
+        if (tickData is WeaponTickDataGunAssaultRifle tickDataGunAssaultRifle)
         {
-            _stateMachine.LatestTickData = tickDataGunPistol;
+            _stateMachine.LatestTickData = tickDataGunAssaultRifle;
         }
         else
         {
@@ -297,14 +297,14 @@ public class WeaponGunPistol : Weapon
     public override void SetStateToIdle()
     {
         _stateMachine.CurrentState.OnStateExit();
-        _stateMachine.SetCurrentState((uint)WeaponContextGunPistol.StateIndex.Idle);
+        _stateMachine.SetCurrentState((uint)WeaponContextGunAssaultRifle.StateIndex.Idle);
         _stateMachine.CurrentState.OnStateEnter();
     }
 
     public override void SetStateToHolster()
     {
         _stateMachine.CurrentState.OnStateExit();
-        _stateMachine.SetCurrentState((uint)WeaponContextGunPistol.StateIndex.Holster);
+        _stateMachine.SetCurrentState((uint)WeaponContextGunAssaultRifle.StateIndex.Holster);
         _stateMachine.CurrentState.OnStateEnter();
     }
 
@@ -338,7 +338,7 @@ public class WeaponGunPistol : Weapon
             var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Header.Tick);
             if (i == -1)
             {
-                Debug.LogWarning("WeaponGunPistol.IsDesynced: LatestTickData is too old.");
+                Debug.LogWarning("WeaponGunAssaultRifle.IsDesynced: LatestTickData is too old.");
                 return false;
             }
 
@@ -352,7 +352,7 @@ public class WeaponGunPistol : Weapon
         }
         else
         {
-            Debug.LogWarning("WeaponGunPistol.IsDesynced: LatestTickData is null.");
+            Debug.LogWarning("WeaponGunAssaultRifle.IsDesynced: LatestTickData is null.");
             return false;
         }
     }

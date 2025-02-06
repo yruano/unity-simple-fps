@@ -11,6 +11,7 @@ public abstract class Weapon : MonoBehaviour
     public abstract void ResetWeapon();
     public abstract void SetLatestTickData<T>(T tickData) where T : struct, IWeaponTickData;
     public abstract void SetStateToIdle();
+    public abstract void SetStateToHolster();
 
     public abstract byte[] GetSerializedTickData(ulong tick);
     public abstract void PushCurrentTickData(ulong tick);
