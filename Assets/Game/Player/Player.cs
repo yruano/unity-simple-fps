@@ -446,7 +446,7 @@ public class Player : NetworkBehaviour
             var i = GetTickDataIndexFromBuffer(serverTickData.Tick);
             if (i == -1)
             {
-                Debug.LogError("Player.IsDesynced: LatestTickData is too old.");
+                Debug.LogWarning("Player.IsDesynced: LatestTickData is too old.");
                 return false;
             }
 
@@ -460,7 +460,7 @@ public class Player : NetworkBehaviour
         }
         else
         {
-            Debug.LogError("Player.IsDesynced: LatestTickData is null.");
+            Debug.LogWarning("Player.IsDesynced: LatestTickData is null.");
             return false;
         }
     }
@@ -472,15 +472,19 @@ public class Player : NetworkBehaviour
             if (LatestTickData is { } serverTickData)
             {
                 var tickIndex = GetTickDataIndexFromBuffer(serverTickData.Tick);
-                if (tickIndex == -1) return;
+                if (tickIndex == -1)
+                {
+                    Debug.LogWarning("Player.Reconcile: LatestTickData is too old.");
+                    return;
+                }
 
+                // Check prediction.
                 var isDesynced = IsDesynced();
 
                 // Remove old data.
                 InputBuffer.RemoveFrontItems(tickIndex + 1);
                 TickBuffer.RemoveFrontItems(tickIndex + 1);
 
-                // Check prediction.
                 if (isDesynced)
                 {
                     Debug.Log("prediction failed");

@@ -335,7 +335,7 @@ public class WeaponGunPistol : Weapon
             var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Header.Tick);
             if (i == -1)
             {
-                Debug.LogError("WeaponGunPistol.IsDesynced: LatestTickData is too old.");
+                Debug.LogWarning("WeaponGunPistol.IsDesynced: LatestTickData is too old.");
                 return false;
             }
 
@@ -349,7 +349,7 @@ public class WeaponGunPistol : Weapon
         }
         else
         {
-            Debug.LogError("WeaponGunPistol.IsDesynced: LatestTickData is null.");
+            Debug.LogWarning("WeaponGunPistol.IsDesynced: LatestTickData is null.");
             return false;
         }
     }
