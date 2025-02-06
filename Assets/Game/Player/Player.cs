@@ -82,27 +82,33 @@ public class Player : NetworkBehaviour
 
     private GameUser _user;
 
+    // Components
     private GameObject _visual;
     private Collider _collider;
     private CharacterController _characterController;
 
+    // Camera
     private PlayerCameraTarget _cameraTarget;
     private CinemachineCamera _cmFirstPersonCamera;
     private CinemachineInputAxisController _cmInputAxisController;
 
+    // Inputs
     private InputAction _inputMove;
     private InputAction _inputWeaponShoot;
     private InputAction _inputWeaponAim;
     private InputAction _inputWeaponReload;
 
-    private Dictionary<WeaponType, Weapon> _weapons = new();
-    private Weapon _weapon;
-
+    // Stats
     public bool IsDead { get; private set; } = false;
     [CreateProperty] public int HealthMax { get; private set; } = 100;
     [CreateProperty] public int Health { get; private set; } = 0;
     private float _velocityY = 0;
 
+    // Weapons
+    private Dictionary<WeaponType, Weapon> _weapons = new();
+    private Weapon _weapon;
+
+    // Networking
     private ulong _tick = 0;
     private ulong _delayTick = 0;
     private ulong _serverTick = 0;
@@ -217,8 +223,7 @@ public class Player : NetworkBehaviour
                 OnUpdate(input, Time.fixedDeltaTime);
 
                 // Store tick data.
-                PushTickData(input, GetTickData(_tick));
-                _weapon.PushCurrentTickData(_tick);
+                PushCurrentTickData(input, _tick);
 
                 // Reconclie.
                 Reconcile();
@@ -332,6 +337,16 @@ public class Player : NetworkBehaviour
         };
     }
 
+    public int GetTickDataIndexFromBuffer(ulong tick)
+    {
+        for (var i = 0; i < TickBuffer.Count; ++i)
+        {
+            if (TickBuffer[i].Tick == tick)
+                return i;
+        }
+        return -1;
+    }
+
     public void ApplyTickData(PlayerTickData tickData)
     {
         // Apply stats.
@@ -359,14 +374,10 @@ public class Player : NetworkBehaviour
         TickBuffer.Add(tickData);
     }
 
-    public int GetTickDataIndexFromBuffer(ulong tick)
+    public void PushCurrentTickData(PlayerInput input, ulong tick)
     {
-        for (var i = 0; i < TickBuffer.Count; ++i)
-        {
-            if (TickBuffer[i].Tick == tick)
-                return i;
-        }
-        return -1;
+        PushTickData(input, GetTickData(tick));
+        _weapon.PushCurrentTickData(tick);
     }
 
     public void SetInputActive(bool value)
@@ -428,70 +439,95 @@ public class Player : NetworkBehaviour
         }
     }
 
-    private bool IsDesync(PlayerTickData serverTickData, PlayerTickData predictedTickData)
+    private bool IsDesynced()
     {
-        return
-            serverTickData.HealthMax != predictedTickData.HealthMax ||
-            serverTickData.Health != predictedTickData.Health ||
-            serverTickData.Position != predictedTickData.Position;
+        if (LatestTickData is { } serverTickData)
+        {
+            var i = GetTickDataIndexFromBuffer(serverTickData.Tick);
+            if (i == -1)
+            {
+                Debug.LogError("Player.IsDesynced: LatestTickData is too old.");
+                return false;
+            }
+
+            var clientTickData = TickBuffer[i];
+            return
+                serverTickData.HealthMax != clientTickData.HealthMax ||
+                serverTickData.Health != clientTickData.Health ||
+                serverTickData.Position != clientTickData.Position ||
+                serverTickData.CurrentWeaponType != clientTickData.CurrentWeaponType ||
+                _weapons[serverTickData.CurrentWeaponType].IsDesynced();
+        }
+        else
+        {
+            Debug.LogError("Player.IsDesynced: LatestTickData is null.");
+            return false;
+        }
     }
 
     private void Reconcile()
     {
-        if (LatestTickData is { } serverTickData)
+        try
+        {
+            if (LatestTickData is { } serverTickData)
+            {
+                var tickIndex = GetTickDataIndexFromBuffer(serverTickData.Tick);
+                if (tickIndex == -1) return;
+
+                var isDesynced = IsDesynced();
+
+                // Remove old data.
+                InputBuffer.RemoveFrontItems(tickIndex + 1);
+                TickBuffer.RemoveFrontItems(tickIndex + 1);
+
+                // Check prediction.
+                if (isDesynced)
+                {
+                    Debug.Log("prediction failed");
+
+                    // Rollback.
+                    for (var i = TickBuffer.Count - 1; i >= 0; --i)
+                    {
+                        var tick = TickBuffer[i].Tick;
+                        if (tick < serverTickData.Tick)
+                            break;
+
+                        var weapon = _weapons[TickBuffer[i].CurrentWeaponType];
+                        weapon.RollbackToTick(tick);
+                    }
+
+                    // Clear player tick data.
+                    TickBuffer.Clear();
+
+                    // Clear weapons tick data.
+                    foreach (var weapon in _weapons.Values)
+                        weapon.ClearTickData(serverTickData.Tick);
+
+                    // Apply server tick data.
+                    ApplyTickData(serverTickData);
+                    _weapon.ApplyLatestTickData();
+                    // TODO:
+                    // 서버가 배열열 위치와 회전값, 애니/이펙트/사운드 ID, 소환 또는 삭제 정보를 전송함
+                    // 클라는 그 정보를 받아서 실행함.
+
+                    // Resimulate.
+                    for (var i = 0; i < InputBuffer.Count; ++i)
+                    {
+                        var input = InputBuffer[i];
+                        OnUpdate(input, Time.fixedDeltaTime);
+                        PushCurrentTickData(input, input.Tick);
+                        // TODO: 애니, 이펙트, 사운드 시간 진행
+                    }
+                }
+                else
+                {
+                    Debug.Log("prediction success");
+                }
+            }
+        }
+        finally
         {
             LatestTickData = null;
-
-            var i = GetTickDataIndexFromBuffer(serverTickData.Tick);
-            if (i == -1) return;
-
-            var predictedTickData = TickBuffer[i];
-
-            // Remove old data.
-            InputBuffer.RemoveFrontItems(i + 1);
-            TickBuffer.RemoveFrontItems(i + 1);
-
-            // Check prediction.
-            if (IsDesync(serverTickData, predictedTickData))
-            {
-                Debug.Log("prediction failed");
-
-                // Rollback.
-                for (var j = TickBuffer.Count - 1; j > i; --j)
-                {
-                    var tick = TickBuffer[j].Tick;
-                    if (tick < serverTickData.Tick)
-                        break;
-
-                    var weapon = _weapons[TickBuffer[j].CurrentWeaponType];
-                    weapon.RollbackToTick(tick);
-                }
-
-                // Clear weapons tick data.
-                foreach (var weapon in _weapons.Values)
-                    weapon.ClearTickData(serverTickData.Tick);
-
-                // Apply latest state.
-                ApplyTickData(serverTickData);
-                _weapon.ApplyLatestTickData();
-                // TODO:
-                // 서버가 배열열 위치와 회전값, 애니/이펙트/사운드 ID, 소환 또는 삭제 정보를 전송함
-                // 클라는 그 정보를 받아서 실행함.
-
-                // Resimulate.
-                for (var j = 0; j < InputBuffer.Count; ++j)
-                {
-                    var input = InputBuffer[j];
-                    OnUpdate(input, Time.fixedDeltaTime);
-                    TickBuffer[j] = GetTickData(input.Tick);
-                    _weapon.PushCurrentTickData(input.Tick);
-                    // TODO: 애니, 이펙트, 사운드 시간 진행
-                }
-            }
-            else
-            {
-                Debug.Log("prediction success");
-            }
         }
     }
 

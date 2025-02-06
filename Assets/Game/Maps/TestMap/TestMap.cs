@@ -4,8 +4,7 @@ using Unity.Netcode;
 
 public class TestMap : MapBase
 {
-    [SerializeField]
-    private Player PlayerPrefab;
+    [SerializeField] private Player PlayerPrefab;
 
     protected override void Start()
     {

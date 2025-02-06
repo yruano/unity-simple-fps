@@ -328,6 +328,32 @@ public class WeaponGunPistol : Weapon
         }
     }
 
+    public override bool IsDesynced()
+    {
+        if (_stateMachine.LatestTickData is { } serverTickData)
+        {
+            var i = _stateMachine.GetTickDataIndexFromBuffer(serverTickData.Header.Tick);
+            if (i == -1)
+            {
+                Debug.LogError("WeaponGunPistol.IsDesynced: LatestTickData is too old.");
+                return false;
+            }
+
+            var clientTickData = _stateMachine.TickBuffer[i];
+            return
+                serverTickData.Header.StateIndex != clientTickData.Header.StateIndex ||
+                serverTickData.MagazineSize != clientTickData.MagazineSize ||
+                serverTickData.AmmoCount != clientTickData.AmmoCount ||
+                serverTickData.ShootTimer.Time != clientTickData.ShootTimer.Time ||
+                serverTickData.ReloadTimer.Time != clientTickData.ReloadTimer.Time;
+        }
+        else
+        {
+            Debug.LogError("WeaponGunPistol.IsDesynced: LatestTickData is null.");
+            return false;
+        }
+    }
+
     public override void RollbackToTick(ulong tick)
     {
         _stateMachine.RollbackTick(tick);
