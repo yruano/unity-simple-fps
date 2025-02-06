@@ -128,18 +128,21 @@ public class WeaponContextGunAssaultRifle : WeaponContext<WeaponTickDataGunAssau
         switch (ctx.CurrentStateIndex)
         {
             case (uint)StateIndex.Idle:
-                if (ctx.AmmoCount > 0 && input.InputHoldWeaponShoot)
+                if (input.InputHoldWeaponShoot && ctx.AmmoCount > 0)
                 {
                     return (uint)StateIndex.Shoot;
                 }
-
-                if (ctx.AmmoCount < ctx.MagazineSize && input.InputDownWeaponReload)
+                if (input.InputDownWeaponReload && ctx.AmmoCount < ctx.MagazineSize)
                 {
                     return (uint)StateIndex.Reload;
                 }
                 break;
 
             case (uint)StateIndex.Shoot:
+                if (input.InputDownWeaponReload && ctx.AmmoCount < ctx.MagazineSize)
+                {
+                    return (uint)StateIndex.Reload;
+                }
                 if (stateMachine.CurrentState.IsDone())
                 {
                     return (uint)StateIndex.Idle;
