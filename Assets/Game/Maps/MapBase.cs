@@ -33,7 +33,11 @@ public class MapBase : NetworkBehaviour
         {
             NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
-            NetworkManager.Singleton.SceneManager.OnSceneEvent -= OnSceneEvent;
+
+            if (NetworkManager.Singleton.SceneManager != null)
+            {
+                NetworkManager.Singleton.SceneManager.OnSceneEvent -= OnSceneEvent;
+            }
         }
 
         _inputEscape.performed -= OnInputEscape;

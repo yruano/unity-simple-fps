@@ -334,6 +334,7 @@ public class Player : NetworkBehaviour
             Health = Health,
             VelocityY = _velocityY,
             Position = transform.position,
+            CurrentWeaponType = _weapon.WeaponType,
         };
     }
 
@@ -473,10 +474,7 @@ public class Player : NetworkBehaviour
             {
                 var tickIndex = GetTickDataIndexFromBuffer(serverTickData.Tick);
                 if (tickIndex == -1)
-                {
-                    Debug.LogWarning("Player.Reconcile: LatestTickData is too old.");
                     return;
-                }
 
                 // Check prediction.
                 var isDesynced = IsDesynced();
