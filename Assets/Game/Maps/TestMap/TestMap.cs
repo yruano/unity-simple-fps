@@ -15,24 +15,29 @@ public class TestMap : MapBase
 
         if (IsHost)
         {
-            foreach (var user in LobbyManager.Singleton.Users.Values)
-            {
-                SpawnPlayer(user.ClientId);
-            }
-        }
-    }
-
-    protected override void OnClientConnected(ulong clientId)
-    {
-        if (IsHost)
-        {
-            SpawnPlayer(clientId);
+            // Spawn host player.
+            SpawnPlayer(NetworkManager.Singleton.LocalClientId);
         }
     }
 
     protected override void OnClientStopped(bool isHost)
     {
         SceneManager.LoadScene(Scenes.LobbyListMenu);
+    }
+
+    protected override void OnSceneEvent(SceneEvent sceneEvent)
+    {
+        if (IsHost)
+        {
+            switch (sceneEvent.SceneEventType)
+            {
+                // Client scene loaded.
+                case SceneEventType.LoadComplete:
+                    // Spawn client player.
+                    SpawnPlayer(sceneEvent.ClientId);
+                    break;
+            }
+        }
     }
 
     private void SpawnPlayer(ulong clientId)

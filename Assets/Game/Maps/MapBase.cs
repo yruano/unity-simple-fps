@@ -21,6 +21,7 @@ public class MapBase : NetworkBehaviour
 
         NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
+        NetworkManager.Singleton.SceneManager.OnSceneEvent += OnSceneEvent;
 
         _inputEscape = InputSystem.actions.FindAction("InGame/Escape");
         _inputEscape.performed += OnInputEscape;
@@ -32,6 +33,7 @@ public class MapBase : NetworkBehaviour
         {
             NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
+            NetworkManager.Singleton.SceneManager.OnSceneEvent -= OnSceneEvent;
         }
 
         _inputEscape.performed -= OnInputEscape;
@@ -39,6 +41,7 @@ public class MapBase : NetworkBehaviour
         base.OnDestroy();
     }
 
+    protected virtual void OnSceneEvent(SceneEvent sceneEvent) { }
     protected virtual void OnClientConnected(ulong clientId) { }
     protected virtual void OnClientStopped(bool isHost) { }
 
