@@ -315,7 +315,7 @@ public class WeaponGunPistol : Weapon
         _stateMachine.PushTickData(_stateMachine.Context.GetTickData(tick));
     }
 
-    public override void ClearTickData(ulong latestTick)
+    public override void ClearTickData()
     {
         _stateMachine.TickBuffer.Clear();
     }

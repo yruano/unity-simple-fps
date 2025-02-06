@@ -15,7 +15,7 @@ public abstract class Weapon : MonoBehaviour
     public abstract byte[] GetSerializedTickData(ulong tick);
     public abstract void PushCurrentTickData(ulong tick);
 
-    public abstract void ClearTickData(ulong latestTick);
+    public abstract void ClearTickData();
     public abstract void ApplyLatestTickData();
 
     public abstract bool IsDesynced();

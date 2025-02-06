@@ -20,6 +20,14 @@ public class TestMap : MapBase
         }
     }
 
+    protected override void OnClientConnected(ulong clientId)
+    {
+        if (IsHost)
+        {
+            SpawnPlayer(clientId);
+        }
+    }
+
     protected override void OnClientStopped(bool isHost)
     {
         SceneManager.LoadScene(Scenes.LobbyListMenu);
@@ -33,8 +41,11 @@ public class TestMap : MapBase
             {
                 // Client scene loaded.
                 case SceneEventType.LoadComplete:
-                    // Spawn client player.
-                    SpawnPlayer(sceneEvent.ClientId);
+                    if (LobbyManager.Singleton.UserTransportId.ContainsKey(sceneEvent.ClientId))
+                    {
+                        // Spawn client player.
+                        SpawnPlayer(sceneEvent.ClientId);
+                    }
                     break;
             }
         }

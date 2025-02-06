@@ -2,6 +2,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Netcode;
 
+// Event order:
+// 1. OnSceneEvent: SceneEventType.LoadComplete
+// 2. OnClientConnectedCallback
+
 public class MapBase : NetworkBehaviour
 {
     [SerializeField] protected GameObject PrefabInGameEscapeMenu;
@@ -45,9 +49,9 @@ public class MapBase : NetworkBehaviour
         base.OnDestroy();
     }
 
-    protected virtual void OnSceneEvent(SceneEvent sceneEvent) { }
     protected virtual void OnClientConnected(ulong clientId) { }
     protected virtual void OnClientStopped(bool isHost) { }
+    protected virtual void OnSceneEvent(SceneEvent sceneEvent) { }
 
     protected virtual void OnInputEscape(InputAction.CallbackContext ctx)
     {

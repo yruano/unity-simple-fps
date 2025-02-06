@@ -140,8 +140,10 @@ public class Player : NetworkBehaviour
     {
         if (IsHost || IsOwner)
         {
+            Debug.Log("OnNetworkSpawn");
             _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
             _user.Player = this;
+            SetInputActive(true);
         }
 
         // Setup camera target.
@@ -172,7 +174,7 @@ public class Player : NetworkBehaviour
             _characterController.enabled = false;
         }
 
-        base.OnNetworkSpawn();
+        base.OnNetworkPostSpawn();
     }
 
     public override void OnDestroy()
@@ -360,11 +362,11 @@ public class Player : NetworkBehaviour
         transform.position = tickData.Position;
         _characterController.enabled = true;
 
-        // Weapon.
+        // Apply weapon.
         _weapon = _weapons[tickData.CurrentWeaponType];
     }
 
-    public void PushTickData(PlayerInput input, PlayerTickData tickData)
+    public void PushCurrentTickData(PlayerInput input, ulong tick)
     {
         if (InputBuffer.Count == InputBuffer.Capacity)
             InputBuffer.PopFirst();
@@ -372,12 +374,8 @@ public class Player : NetworkBehaviour
 
         if (TickBuffer.Count == TickBuffer.Capacity)
             TickBuffer.PopFirst();
-        TickBuffer.Add(tickData);
-    }
+        TickBuffer.Add(GetTickData(tick));
 
-    public void PushCurrentTickData(PlayerInput input, ulong tick)
-    {
-        PushTickData(input, GetTickData(tick));
         _weapon.PushCurrentTickData(tick);
     }
 
@@ -503,7 +501,7 @@ public class Player : NetworkBehaviour
 
                     // Clear weapons tick data.
                     foreach (var weapon in _weapons.Values)
-                        weapon.ClearTickData(serverTickData.Tick);
+                        weapon.ClearTickData();
 
                     // Apply server tick data.
                     ApplyTickData(serverTickData);
