@@ -174,9 +174,9 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
             if (ctx.AmmoCount == 0)
                 return;
 
+            // Client prediction.
             ctx.AmmoCount -= 1;
-
-            // 이펙트 및 애니메이션 실행 (클라 예측)
+            // 이펙트 및 애니메이션 실행
 
             // Hit check.
             if (NetworkManager.Singleton.IsHost)
@@ -186,7 +186,6 @@ public class WeaponStateGunPistolShoot : WeaponState<WeaponTickDataGunPistol>
                 var rayDist = 100f;
 
                 Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
-
                 if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
                 {
                     var collider = rayHitInfo.collider;

@@ -11,8 +11,8 @@ public struct PlayerInput : INetworkSerializable
 {
     public ulong Tick;
     public float InputRotaionY;
-    public Vector2 InputWalkDir;
     public Vector3 InputCameraDir;
+    public Vector2 InputWalkDir;
     public bool InputDownWeaponShoot;
     public bool InputHoldWeaponAim;
     public bool InputDownWeaponReload;
@@ -21,8 +21,8 @@ public struct PlayerInput : INetworkSerializable
     {
         serializer.SerializeValue(ref Tick);
         serializer.SerializeValue(ref InputRotaionY);
-        serializer.SerializeValue(ref InputWalkDir);
         serializer.SerializeValue(ref InputCameraDir);
+        serializer.SerializeValue(ref InputWalkDir);
         serializer.SerializeValue(ref InputDownWeaponShoot);
         serializer.SerializeValue(ref InputHoldWeaponAim);
         serializer.SerializeValue(ref InputDownWeaponReload);
@@ -205,8 +205,8 @@ public class Player : NetworkBehaviour
             {
                 Tick = _tick,
                 InputRotaionY = _cmFirstPersonCamera.transform.eulerAngles.y,
-                InputWalkDir = _inputMove.ReadValue<Vector2>(),
                 InputCameraDir = GetCameraDir(),
+                InputWalkDir = _inputMove.ReadValue<Vector2>(),
                 InputDownWeaponShoot = _inputWeaponShoot.WasPressedThisFrame(),
                 InputHoldWeaponAim = _inputWeaponAim.IsPressed(),
                 InputDownWeaponReload = _inputWeaponReload.WasPressedThisFrame(),
