@@ -497,22 +497,22 @@ public class Player : NetworkBehaviour
 
     public void Respawn()
     {
-        if (!_user.IsDead)
+        if (!IsDead)
             return;
 
-        _user.IsDead = false;
+        IsDead = false;
         Health = HealthMax;
         PlayerRespawnRpc();
     }
 
     public void CheckDeath()
     {
-        if (_user.IsDead)
+        if (IsDead)
             return;
 
         if (Health == 0)
         {
-            _user.IsDead = true;
+            IsDead = true;
             PlayerDeathRpc();
 
             Invoke(nameof(Respawn), 3.0f);

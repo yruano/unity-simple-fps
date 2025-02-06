@@ -10,10 +10,25 @@ public class TestMap : MapBase
     protected override void Start()
     {
         base.Start();
-        SpawnPlayerRpc();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        if (IsHost)
+        {
+            foreach (var user in LobbyManager.Singleton.Users.Values)
+            {
+                SpawnPlayer(user.ClientId);
+            }
+        }
+    }
+
+    protected override void OnClientConnected(ulong clientId)
+    {
+        if (IsHost)
+        {
+            SpawnPlayer(clientId);
+        }
     }
 
     protected override void OnClientStopped(bool isHost)
@@ -21,14 +36,13 @@ public class TestMap : MapBase
         SceneManager.LoadScene(Scenes.LobbyListMenu);
     }
 
-    [Rpc(SendTo.Server)]
-    private void SpawnPlayerRpc(RpcParams rpcParams = default)
+    private void SpawnPlayer(ulong clientId)
     {
         var player = Instantiate(PlayerPrefab);
         player.SetInputActive(true);
 
         var networkPlayer = player.GetComponent<NetworkObject>();
         networkPlayer.transform.position = new(0, 3.0f, 0);
-        networkPlayer.SpawnWithOwnership(rpcParams.Receive.SenderClientId);
+        networkPlayer.SpawnWithOwnership(clientId);
     }
 }

@@ -7,9 +7,8 @@ using Netcode.Transports;
 
 public class GameUser
 {
-    public ulong NetId = 0;
+    public ulong ClientId = 0;
     public string Name;
-    public bool IsDead = false;
     public Player Player = null;
 }
 
@@ -65,7 +64,7 @@ public class LobbyManager : MonoBehaviour
             UserTransportId.Add(clientId, steamId);
             Users.Add(steamId, new GameUser
             {
-                NetId = clientId,
+                ClientId = clientId,
                 Name = SteamFriends.GetFriendPersonaName(new(steamId))
             });
         };

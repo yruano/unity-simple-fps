@@ -19,6 +19,7 @@ public class MapBase : NetworkBehaviour
 
         _inGameHud = Instantiate(PrefabInGameHud).GetComponent<InGameHud>();
 
+        NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
 
         _inputEscape = InputSystem.actions.FindAction("InGame/Escape");
@@ -29,6 +30,7 @@ public class MapBase : NetworkBehaviour
     {
         if (NetworkManager.Singleton != null)
         {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
         }
 
@@ -37,6 +39,7 @@ public class MapBase : NetworkBehaviour
         base.OnDestroy();
     }
 
+    protected virtual void OnClientConnected(ulong clientId) { }
     protected virtual void OnClientStopped(bool isHost) { }
 
     protected virtual void OnInputEscape(InputAction.CallbackContext ctx)
