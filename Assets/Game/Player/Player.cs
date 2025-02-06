@@ -224,8 +224,9 @@ public class Player : NetworkBehaviour
                 // Client-side prediction.
                 OnUpdate(input, Time.fixedDeltaTime);
 
-                // Store tick data.
-                PushCurrentTickData(input, _tick);
+                // Store input and tick data.
+                PushInputData(input);
+                PushCurrentTickData(_tick);
 
                 // Reconclie.
                 Reconcile();
@@ -366,12 +367,15 @@ public class Player : NetworkBehaviour
         _weapon = _weapons[tickData.CurrentWeaponType];
     }
 
-    public void PushCurrentTickData(PlayerInput input, ulong tick)
+    public void PushInputData(PlayerInput input)
     {
         if (InputBuffer.Count == InputBuffer.Capacity)
             InputBuffer.PopFirst();
         InputBuffer.Add(input);
+    }
 
+    public void PushCurrentTickData(ulong tick)
+    {
         if (TickBuffer.Count == TickBuffer.Capacity)
             TickBuffer.PopFirst();
         TickBuffer.Add(GetTickData(tick));
@@ -515,7 +519,7 @@ public class Player : NetworkBehaviour
                     {
                         var input = InputBuffer[i];
                         OnUpdate(input, Time.fixedDeltaTime);
-                        PushCurrentTickData(input, input.Tick);
+                        PushCurrentTickData(input.Tick);
                         // TODO: 애니, 이펙트, 사운드 시간 진행
                     }
                 }

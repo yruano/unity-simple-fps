@@ -231,7 +231,6 @@ public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
 
         ctx.ReloadTimer.AddCallback(ctx.ReloadTimer.Duration - 0.2f, () =>
         {
-            Debug.Log("reload");
             ctx.AmmoCount = ctx.MagazineSize;
         });
     }
@@ -242,16 +241,10 @@ public class WeaponStateGunPistolReload : WeaponState<WeaponTickDataGunPistol>
         return ctx.ReloadTimer.IsEnded;
     }
 
-    public override void OnStateEnter()
-    {
-        Debug.Log("reload start");
-    }
-
     public override void OnStateExit()
     {
         var ctx = StateMachine.Context as WeaponContextGunPistol;
         ctx.ReloadTimer.Reset();
-        Debug.Log("reload done");
     }
 
     public override void OnStateUpdate(PlayerInput input, float deltaTime)
