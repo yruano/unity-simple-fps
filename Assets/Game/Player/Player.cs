@@ -614,18 +614,6 @@ public class Player : NetworkBehaviour
         Health = Mathf.Clamp(Health + value, 0, HealthMax);
     }
 
-    public void ChangeWeapon(WeaponType weaponType)
-    {
-        if (_weapon.WeaponType == weaponType)
-            return;
-
-        if (_weapons.ContainsKey(weaponType))
-        {
-            _weapon.SetStateToIdle();
-            _weapon = _weapons[weaponType];
-        }
-    }
-
     [Rpc(SendTo.NotServer)]
     private void PlayerOnRespawnRpc(RpcParams rpcParams = default)
     {
