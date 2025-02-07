@@ -640,7 +640,6 @@ public class Player : NetworkBehaviour
 
         unsafe
         {
-            // Set weapon latest tick data.
             fixed (byte* bytePtr = weaponTickData)
             {
                 var size = weaponTickData.Length;
@@ -651,6 +650,7 @@ public class Player : NetworkBehaviour
                 // Read header.
                 reader.ReadValue(out WeaponTickDataHeader header);
 
+                // Set weapon latest tick data.
                 var weapon = _weapons[header.Type];
                 if (header.Type == weapon.WeaponType)
                 {
