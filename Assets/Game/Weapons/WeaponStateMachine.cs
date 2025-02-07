@@ -19,7 +19,7 @@ public interface IWeaponTickData
 public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 {
     public ulong Tick;
-    public uint Type;
+    public WeaponType Type;
     public uint StateIndex;
 }
 
@@ -34,6 +34,7 @@ public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTi
     {
         StateMachine = stateMachine;
     }
+    public abstract void Reset();
 
     public abstract TickData GetTickData(ulong tick);
     public abstract void ApplyTickData<T>(T tickData);

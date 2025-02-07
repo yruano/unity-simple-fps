@@ -3,7 +3,7 @@ using Unity.Netcode;
 
 public abstract class Weapon : MonoBehaviour
 {
-    [HideInInspector] public WeaponType WeaponType;
+    public WeaponType WeaponType { get; protected set; }
 
     protected Player _player;
 
