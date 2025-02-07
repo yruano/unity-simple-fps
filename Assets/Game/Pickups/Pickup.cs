@@ -2,5 +2,13 @@ using Unity.Netcode;
 
 public abstract class Pickup : NetworkBehaviour
 {
-    public abstract void OnPickup(Player plyer);
+    private void Start()
+    {
+        if (!IsHost && !IsSpawned)
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    public abstract void OnPickup(Player player);
 }

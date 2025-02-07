@@ -515,8 +515,6 @@ public class Player : NetworkBehaviour
 
                 if (isDesynced)
                 {
-                    Debug.Log("prediction failed");
-
                     // Rollback.
                     for (var i = TickBuffer.Count - 1; i >= 0; --i)
                     {
@@ -550,10 +548,6 @@ public class Player : NetworkBehaviour
                         PushCurrentTickData(input.Tick);
                         // TODO: 애니, 이펙트, 사운드 시간 진행
                     }
-                }
-                else
-                {
-                    Debug.Log("prediction success");
                 }
             }
         }
