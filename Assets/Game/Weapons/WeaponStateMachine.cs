@@ -25,17 +25,28 @@ public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 
 public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTickData
 {
+    public WeaponType WeaponType;
     public WeaponStateMachine<TickData> StateMachine;
     public WeaponState<TickData>[] States;
-    public ulong CommonFlags;
     public uint CurrentStateIndex;
 
-    public virtual void Init(WeaponStateMachine<TickData> stateMachine)
+    public virtual void Init(WeaponType weaponType, WeaponStateMachine<TickData> stateMachine)
     {
+        WeaponType = weaponType;
         StateMachine = stateMachine;
+        Reset();
     }
     public abstract void Reset();
 
+    public WeaponTickDataHeader GetTickDataHeader(ulong tick)
+    {
+        return new WeaponTickDataHeader
+        {
+            Tick = tick,
+            Type = WeaponType,
+            StateIndex = CurrentStateIndex,
+        };
+    }
     public abstract TickData GetTickData(ulong tick);
     public abstract void ApplyTickData<T>(T tickData);
 
@@ -46,20 +57,11 @@ public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTi
     public abstract uint GetNextState(WeaponStateMachine<TickData> stateMachine, PlayerInput input);
 }
 
-public struct RollbackData
-{
-    public ulong Tick;
-    public Action Rollback;
-}
-
-// NOTE:
-// WeaponState는 Context에 있는 정보만 읽고 써야한다.
-// 그렇지 않으면 Rollback이 제대로 되지 않는다.
 public class WeaponState<TickData> where TickData : struct, IWeaponTickData
 {
     public WeaponStateMachine<TickData> StateMachine;
 
-    public virtual void Init(WeaponStateMachine<TickData> stateMachine)
+    public WeaponState(WeaponStateMachine<TickData> stateMachine)
     {
         StateMachine = stateMachine;
     }
@@ -72,6 +74,12 @@ public class WeaponState<TickData> where TickData : struct, IWeaponTickData
     public virtual void OnStateUpdate(PlayerInput input, float deltaTime) { }
 }
 
+public struct WeaponRollbackData
+{
+    public ulong Tick;
+    public Action FnRollback;
+}
+
 public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickData
 {
     public Player Player;
@@ -80,16 +88,16 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
 
     public TickData? LatestTickData = null;
     public RingBuffer<TickData> TickBuffer = new(20);
-    public Stack<RollbackData> RollbackBuffer = new();
+    public Stack<WeaponRollbackData> RollbackBuffer = new();
 
-    public void Init(Player player, WeaponContext<TickData> context)
+    public void Init(Player player, WeaponContext<TickData> context, WeaponType weaponType)
     {
         Player = player;
         Context = context;
-        Context.Init(this);
+        Context.Init(weaponType, this);
     }
 
-    public void SetCurrentState(uint stateIndex)
+    public void SetState(uint stateIndex)
     {
         Context.CurrentStateIndex = stateIndex;
         CurrentState = Context.States[stateIndex];
@@ -135,7 +143,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
             else
             {
                 CurrentState.OnStateExit();
-                SetCurrentState(nextState);
+                SetState(nextState);
                 CurrentState.OnStateEnter();
             }
         }
@@ -143,7 +151,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
         CurrentState.OnStateUpdate(input, deltaTime);
     }
 
-    public void RollbackTick(ulong tick)
+    public void RollbackToTick(ulong tick)
     {
         while (RollbackBuffer.Count > 0)
         {
@@ -151,7 +159,7 @@ public class WeaponStateMachine<TickData> where TickData : struct, IWeaponTickDa
                 break;
 
             var data = RollbackBuffer.Pop();
-            data.Rollback();
+            data.FnRollback();
         }
     }
 }

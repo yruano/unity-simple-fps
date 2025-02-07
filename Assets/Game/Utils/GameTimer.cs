@@ -10,7 +10,6 @@ public struct GameTimer : INetworkSerializable
     {
         public float TriggerTime;
         public Action OnCallback;
-        public Action OnCancel;
     }
 
     public float Duration;
@@ -48,9 +47,13 @@ public struct GameTimer : INetworkSerializable
         CallbackIndex = 0;
     }
 
-    public Callback AddCallback(float triggerTime, Action onCallback, Action onCancel = null)
+    public Callback AddCallback(float triggerTime, Action onCallback)
     {
-        var callback = new Callback { TriggerTime = triggerTime, OnCallback = onCallback, OnCancel = onCancel };
+        var callback = new Callback
+        {
+            TriggerTime = triggerTime,
+            OnCallback = onCallback,
+        };
         Callbacks.Add(callback);
         Callbacks = Callbacks.OrderBy(t => t.TriggerTime).ToList();
         return callback;
