@@ -1,31 +1,29 @@
 using UnityEngine;
+using UnityEngine.UIElements;
 using Unity.Netcode;
 
 public class LobbyChatManager : NetworkBehaviour
 {
     private LobbyDashboardMenu _lobbyDashboardMenu;
+    private TextField _lobbyChatTextField;
 
     private void Awake()
     {
-        Debug.Log("LobbyChatManager spawned");
         _lobbyDashboardMenu = FindFirstObjectByType<LobbyDashboardMenu>();
         _lobbyDashboardMenu.LobbyChatManager = this;
+        _lobbyChatTextField = _lobbyDashboardMenu.GetLobbyChatTextField();
     }
 
-    private void Start()
+    public override void OnNetworkSpawn()
     {
-        // Client일 때 기존 채팅 다 가져오기
+        // TODO: Client일 때 기존 채팅 다 가져오기
+        _lobbyChatTextField.SetEnabled(true);
+        base.OnNetworkSpawn();
     }
 
-    public void SendMessage(string name, string message)
+    public override void OnDestroy()
     {
-        SendMessageRpc(name, message);
-    }
-
-    [Rpc(SendTo.Server)]
-    private void SendMessageRpc(string name, string message)
-    {
-        BroadcastMessageRpc(name, message);
+        _lobbyChatTextField.SetEnabled(false);
     }
 
     [Rpc(SendTo.Everyone)]

@@ -165,6 +165,9 @@ public class LobbyDashboardMenu : MonoBehaviour
         _steamOnRequestLobbyList = new(SteamOnRequestLobbyList);
         _steamOnCreateLobby = new(SteamOnCreateLobby);
         _steamOnClientLobbyEvent = new(SteamOnClientLobbyEvent);
+
+        UnityEngine.Cursor.lockState = CursorLockMode.None;
+        UnityEngine.Cursor.visible = true;
     }
 
     private void Start()
@@ -234,6 +237,7 @@ public class LobbyDashboardMenu : MonoBehaviour
         };
 
         // Setup LobbyChatTextField.
+        _lobbyChatTextField.SetEnabled(false);
         _lobbyChatTextField.RegisterCallback<ChangeEvent<string>>((evt) =>
         {
             if (string.IsNullOrEmpty(evt.newValue) || LobbyChatManager == null)
@@ -241,7 +245,7 @@ public class LobbyDashboardMenu : MonoBehaviour
 
             var name = LobbyManager.Singleton.GetLocalUser().Name;
             var message = evt.newValue;
-            LobbyChatManager.SendMessage(name, message);
+            LobbyChatManager.BroadcastMessageRpc(name, message);
             _lobbyChatTextField.value = "";
         });
 
@@ -259,6 +263,11 @@ public class LobbyDashboardMenu : MonoBehaviour
             NetworkManager.Singleton.OnClientStarted -= OnClientStarted;
             NetworkManager.Singleton.OnClientStopped -= OnClientStopped;
         }
+    }
+
+    public TextField GetLobbyChatTextField()
+    {
+        return _lobbyChatTextField;
     }
 
     public void AddChatMessage(string Name, string Message)

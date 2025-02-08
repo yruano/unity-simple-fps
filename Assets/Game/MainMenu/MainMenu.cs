@@ -23,6 +23,9 @@ public class MainMenu : MonoBehaviour
         _startGameButton.RegisterCallback<ClickEvent>(OnClickStartGameButton);
         _optionsButton.RegisterCallback<ClickEvent>(OnClickOptionsButton);
         _exitGameButton.RegisterCallback<ClickEvent>(OnClickExitGameButton);
+
+        UnityEngine.Cursor.lockState = CursorLockMode.None;
+        UnityEngine.Cursor.visible = true;
     }
 
     private void Start()
