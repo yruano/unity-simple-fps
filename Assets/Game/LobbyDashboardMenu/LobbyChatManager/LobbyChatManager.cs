@@ -1,14 +1,15 @@
-using Unity.Netcode;
 using UnityEngine;
+using Unity.Netcode;
 
-public class LobbyChatManager : MonoBehaviour
+public class LobbyChatManager : NetworkBehaviour
 {
-    private LobbyListMenu _lobbyListMenu;
+    private LobbyDashboardMenu _lobbyDashboardMenu;
 
     private void Awake()
     {
-        _lobbyListMenu = FindFirstObjectByType<LobbyListMenu>();
-        _lobbyListMenu.LobbyChatManager = this;
+        Debug.Log("LobbyChatManager spawned");
+        _lobbyDashboardMenu = FindFirstObjectByType<LobbyDashboardMenu>();
+        _lobbyDashboardMenu.LobbyChatManager = this;
     }
 
     private void Start()
@@ -22,7 +23,7 @@ public class LobbyChatManager : MonoBehaviour
     }
 
     [Rpc(SendTo.Server)]
-    public void SendMessageRpc(string name, string message)
+    private void SendMessageRpc(string name, string message)
     {
         BroadcastMessageRpc(name, message);
     }
@@ -30,6 +31,6 @@ public class LobbyChatManager : MonoBehaviour
     [Rpc(SendTo.Everyone)]
     public void BroadcastMessageRpc(string name, string message)
     {
-        _lobbyListMenu.AddChatMessage(name, message);
+        _lobbyDashboardMenu.AddChatMessage(name, message);
     }
 }

@@ -21,7 +21,7 @@ public class LobbyListEntryController
     private readonly Label _lobbyOwnerLabel;
     private readonly Button _lobbyJoinButton;
 
-    public LobbyListEntryController(LobbyListMenu lobbyListMenu, VisualElement root, EventCallback<ClickEvent> onClickJoinButton)
+    public LobbyListEntryController(LobbyDashboardMenu lobbyListMenu, VisualElement root, EventCallback<ClickEvent> onClickJoinButton)
     {
         _lobbyNameLabel = root.Q("LobbyNameLabel") as Label;
         _lobbyOwnerLabel = root.Q("LobbyOwnerLabel") as Label;
@@ -91,7 +91,7 @@ public class LobbyChatHistoryListEntryController
     }
 }
 
-public class LobbyListMenu : MonoBehaviour
+public class LobbyDashboardMenu : MonoBehaviour
 {
     [SerializeField] private VisualTreeAsset LobbyListEntryAsset;
     [SerializeField] private VisualTreeAsset LobbyMemberListEntryAsset;
@@ -101,13 +101,14 @@ public class LobbyListMenu : MonoBehaviour
     // UI Elements
     private UIDocument _document;
     private VisualElement _root;
+    private Button _backButton;
     private Button _refreshButton;
     private ListView _lobbyListView;
     private TextField _lobbyNameTextField;
     private IntegerField _maxPlayersIntField;
-    private Toggle _friendOnlyToggle;
-    private Button _lobbyButton1;
-    private Button _lobbyButton2;
+    private Toggle _friendsOnlyToggle;
+    private Button _createLobbyButton;
+    private Button _deleteLobbyButton;
     private ListView _lobbyMemberListView;
     private ListView _lobbyChatHistoryListView;
     private TextField _lobbyChatTextField;
@@ -148,13 +149,14 @@ public class LobbyListMenu : MonoBehaviour
         _document = GetComponent<UIDocument>();
         _root = _document.rootVisualElement;
 
+        _backButton = _root.Q("BackButton") as Button;
         _refreshButton = _root.Q("RefreshButton") as Button;
         _lobbyListView = _root.Q("LobbyListView") as ListView;
         _lobbyNameTextField = _root.Q("LobbyNameTextField") as TextField;
         _maxPlayersIntField = _root.Q("MaxPlayersNum") as IntegerField;
-        _friendOnlyToggle = _root.Q("FriendOnlyToggle") as Toggle;
-        _lobbyButton1 = _root.Q("LobbyButton1") as Button;
-        _lobbyButton2 = _root.Q("LobbyButton2") as Button;
+        _friendsOnlyToggle = _root.Q("FriendsOnlyToggle") as Toggle;
+        _createLobbyButton = _root.Q("CreateLobbyButton") as Button;
+        _deleteLobbyButton = _root.Q("DeleteLobbyButton") as Button;
         _lobbyMemberListView = _root.Q("LobbyMemberListView") as ListView;
         _lobbyChatHistoryListView = _root.Q("LobbyChatHistoryListView") as ListView;
         _lobbyChatTextField = _root.Q("LobbyChatTextField") as TextField;
@@ -170,8 +172,15 @@ public class LobbyListMenu : MonoBehaviour
         NetworkManager.Singleton.OnClientStarted += OnClientStarted;
         NetworkManager.Singleton.OnClientStopped += OnClientStopped;
 
+        // Setup BackButton.
+        _backButton.RegisterCallback<ClickEvent>(evt =>
+        {
+            LobbyManager.Singleton.LeaveLobby();
+            SceneManager.LoadScene(Scenes.MainMenu);
+        });
+
         // Setup RefreshButton.
-        _refreshButton.RegisterCallback<ClickEvent>((evt) => RefreshLobbyList());
+        _refreshButton.RegisterCallback<ClickEvent>(evt => RefreshLobbyList());
 
         // Setup LobbyListView.
         _lobbyListView.itemsSource = _lobbyListEntries;
@@ -195,8 +204,8 @@ public class LobbyListMenu : MonoBehaviour
         _maxPlayersIntField.SetBinding("value", myMaxPlayerNumBinding);
 
         // Setup LobbyButton.
-        _lobbyButton1.RegisterCallback<ClickEvent>(OnClickCreateLobbyButton);
-        _lobbyButton2.RegisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
+        _createLobbyButton.RegisterCallback<ClickEvent>(OnClickCreateLobbyButton);
+        _deleteLobbyButton.RegisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
 
         // Setup LobbyMemberListView.
         _lobbyMemberListView.itemsSource = _lobbyMemberListEntries;
@@ -321,7 +330,7 @@ public class LobbyListMenu : MonoBehaviour
             _lobbyListView.RefreshItems();
             _lobbyNameTextField.SetEnabled(true);
             _maxPlayersIntField.SetEnabled(true);
-            _friendOnlyToggle.SetEnabled(true);
+            _friendsOnlyToggle.SetEnabled(true);
             return;
         }
 
@@ -370,11 +379,11 @@ public class LobbyListMenu : MonoBehaviour
 
             _lobbyNameTextField.SetEnabled(true);
             _maxPlayersIntField.SetEnabled(true);
-            _friendOnlyToggle.SetEnabled(true);
-            _lobbyButton1.SetEnabled(true);
-            _lobbyButton2.SetEnabled(true);
-            _lobbyButton1.visible = true;
-            _lobbyButton2.visible = true;
+            _friendsOnlyToggle.SetEnabled(true);
+            _createLobbyButton.SetEnabled(true);
+            _deleteLobbyButton.SetEnabled(true);
+            _createLobbyButton.visible = true;
+            _deleteLobbyButton.visible = true;
         }
         else
         {
@@ -383,11 +392,11 @@ public class LobbyListMenu : MonoBehaviour
 
             _lobbyNameTextField.SetEnabled(false);
             _maxPlayersIntField.SetEnabled(false);
-            _friendOnlyToggle.SetEnabled(false);
-            _lobbyButton1.SetEnabled(false);
-            _lobbyButton2.SetEnabled(false);
-            _lobbyButton1.visible = false;
-            _lobbyButton2.visible = false;
+            _friendsOnlyToggle.SetEnabled(false);
+            _createLobbyButton.SetEnabled(false);
+            _deleteLobbyButton.SetEnabled(false);
+            _createLobbyButton.visible = false;
+            _deleteLobbyButton.visible = false;
         }
     }
 
@@ -455,14 +464,14 @@ public class LobbyListMenu : MonoBehaviour
             _lobbyListView.RefreshItems();
             _lobbyNameTextField.SetEnabled(false);
             _maxPlayersIntField.SetEnabled(false);
-            _friendOnlyToggle.SetEnabled(false);
+            _friendsOnlyToggle.SetEnabled(false);
 
             if (string.IsNullOrEmpty(_lobbyNameTextField.value))
             {
                 _lobbyNameTextField.value = $"Lobby created by \"{SteamFriends.GetPersonaName()}\"";
             }
 
-            var lobbyType = _friendOnlyToggle.value ? ELobbyType.k_ELobbyTypeFriendsOnly : ELobbyType.k_ELobbyTypePublic;
+            var lobbyType = _friendsOnlyToggle.value ? ELobbyType.k_ELobbyTypeFriendsOnly : ELobbyType.k_ELobbyTypePublic;
             _steamOnCreateLobby.Set(SteamMatchmaking.CreateLobby(lobbyType, MyMaxPlayersValue));
         }
         else
@@ -479,7 +488,7 @@ public class LobbyListMenu : MonoBehaviour
         _lobbyListView.RefreshItems();
         _lobbyNameTextField.SetEnabled(true);
         _maxPlayersIntField.SetEnabled(true);
-        _friendOnlyToggle.SetEnabled(true);
+        _friendsOnlyToggle.SetEnabled(true);
 
         _lobbyNameTextField.value = "";
         _maxPlayersIntField.value = 10;

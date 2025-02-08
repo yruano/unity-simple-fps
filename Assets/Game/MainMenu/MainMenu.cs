@@ -45,18 +45,16 @@ public class MainMenu : MonoBehaviour
 
     private void OnClickStartGameButton(ClickEvent evt)
     {
-        Debug.Log("StartGameButton");
         SceneManager.LoadScene(Scenes.LobbyListMenu);
     }
 
     private void OnClickOptionsButton(ClickEvent evt)
     {
-        Debug.Log("OptionsButton");
+        // TODO: Options menu.
     }
 
     private void OnClickExitGameButton(ClickEvent evt)
     {
-        Debug.Log("ExitGameButton");
         Application.Quit();
     }
 }
