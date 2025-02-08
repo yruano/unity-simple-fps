@@ -45,54 +45,13 @@ public class LobbyManager : MonoBehaviour
     {
         GetClientAndTransportIdMapping();
 
-        if (SteamManager.IsInitialized)
-        {
-            _steamOnJoinLobby = new(SteamOnJoinLobby);
-            _steamOnClientLobbyEvent = new(SteamOnClientLobbyEvent);
-            _steamOnGameLobbyJoinRequested = new(SteamOnGameLobbyJoinRequested);
-        }
+        _steamOnJoinLobby = new(SteamOnJoinLobby);
+        _steamOnClientLobbyEvent = new(SteamOnClientLobbyEvent);
+        _steamOnGameLobbyJoinRequested = new(SteamOnGameLobbyJoinRequested);
 
-        NetworkManager.Singleton.OnClientConnectedCallback += (ulong clientId) =>
-        {
-            Debug.Log($"[NetworkManager] client connected: {clientId}");
-            if (clientId == NetworkManager.Singleton.LocalClientId)
-            {
-                _clientToTransportId.Add(clientId, SteamUser.GetSteamID().m_SteamID);
-            }
-
-            var steamId = _clientToTransportId[clientId];
-            UserTransportId.Add(clientId, steamId);
-            Users.Add(steamId, new GameUser
-            {
-                ClientId = clientId,
-                Name = SteamFriends.GetFriendPersonaName(new(steamId))
-            });
-        };
-
-        NetworkManager.Singleton.OnClientStopped += (bool isHost) =>
-        {
-            Debug.Log($"[NetworkManager] OnClientStopped");
-            if (NetworkManager.Singleton.IsClient)
-            {
-                LeaveLobby();
-            }
-        };
-
-        NetworkManager.Singleton.OnConnectionEvent += (NetworkManager _, ConnectionEventData data) =>
-        {
-            switch (data.EventType)
-            {
-                case ConnectionEvent.PeerDisconnected:
-                    Debug.Log($"[NetworkManager] PeerDisconnected: {data.ClientId}");
-                    if (UserTransportId.ContainsKey(data.ClientId))
-                    {
-                        var steamId = UserTransportId[data.ClientId];
-                        UserTransportId.Remove(data.ClientId);
-                        Users.Remove(steamId);
-                    }
-                    break;
-            }
-        };
+        NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnectedCallback;
+        NetworkManager.Singleton.OnClientStopped += OnClientStopped;
+        NetworkManager.Singleton.OnConnectionEvent += OnConnectionEvent;
     }
 
     private void OnDestroy()
@@ -155,21 +114,17 @@ public class LobbyManager : MonoBehaviour
 
     public void JoinLobby(CSteamID lobbyId, CSteamID lobbyOwnerId)
     {
+        Debug.Log("JoinLobby");
+
         // Leave current lobby.
         if (JoinedLobbyId is { } id)
         {
             if (id.m_SteamID == lobbyId.m_SteamID)
+            {
                 return;
+            }
 
             LeaveLobby();
-        }
-
-        // Check server is full.
-        var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
-        var curPlayers = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
-        if (curPlayers >= maxPlayers)
-        {
-            return;
         }
 
         // Join lobby.
@@ -191,6 +146,71 @@ public class LobbyManager : MonoBehaviour
             ClearJoinedLobbyId();
             UserTransportId.Clear();
             Users.Clear();
+        }
+    }
+
+    private void OnClientConnectedCallback(ulong clientId)
+    {
+        Debug.Log($"[NetworkManager] client connected: {clientId}");
+
+        if (NetworkManager.Singleton.IsHost)
+        {
+            // Check if server is full.
+            if (clientId != NetworkManager.Singleton.LocalClientId)
+            {
+                if (JoinedLobbyId is { } lobbyId)
+                {
+                    var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
+                    var curPlayers = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+                    Debug.Log(maxPlayers);
+                    Debug.Log(curPlayers);
+                    if (curPlayers >= maxPlayers)
+                    {
+                        NetworkManager.Singleton.DisconnectClient(clientId, "Server is full.");
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Add self to _clientToTransportId mapping.
+        if (clientId == NetworkManager.Singleton.LocalClientId)
+        {
+            _clientToTransportId.Add(clientId, SteamUser.GetSteamID().m_SteamID);
+        }
+
+        // Add GameUser.
+        var steamId = _clientToTransportId[clientId];
+        UserTransportId.Add(clientId, steamId);
+        Users.Add(steamId, new GameUser
+        {
+            ClientId = clientId,
+            Name = SteamFriends.GetFriendPersonaName(new(steamId))
+        });
+    }
+
+    private void OnClientStopped(bool isHost)
+    {
+        Debug.Log($"[NetworkManager] OnClientStopped");
+        if (NetworkManager.Singleton.IsClient)
+        {
+            LeaveLobby();
+        }
+    }
+
+    private void OnConnectionEvent(NetworkManager _, ConnectionEventData data)
+    {
+        switch (data.EventType)
+        {
+            case ConnectionEvent.PeerDisconnected:
+                Debug.Log($"[NetworkManager] PeerDisconnected: {data.ClientId}");
+                if (UserTransportId.ContainsKey(data.ClientId))
+                {
+                    var steamId = UserTransportId[data.ClientId];
+                    UserTransportId.Remove(data.ClientId);
+                    Users.Remove(steamId);
+                }
+                break;
         }
     }
 

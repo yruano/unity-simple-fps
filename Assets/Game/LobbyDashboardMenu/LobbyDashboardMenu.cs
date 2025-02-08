@@ -253,10 +253,10 @@ public class LobbyDashboardMenu : MonoBehaviour
         InvokeRepeating(nameof(RefreshLobbyList), 0, 5);
 
         // Update lobby elements.
-        UpdateLobbyElements(true);
+        UpdateLobbyElements();
     }
 
-    public void OnDestroy()
+    private void OnDestroy()
     {
         if (NetworkManager.Singleton != null)
         {
@@ -272,31 +272,44 @@ public class LobbyDashboardMenu : MonoBehaviour
 
     public void AddChatMessage(string Name, string Message)
     {
-        _lobbyChatHistoryListEntries.Add(new LobbyChatHistroyListEntryData { Name = Name, Message = Message });
+        _lobbyChatHistoryListEntries.Add(new LobbyChatHistroyListEntryData
+        {
+            Name = Name,
+            Message = Message,
+        });
         _lobbyChatHistoryListView.RefreshItems();
         _lobbyChatHistoryListView.ScrollToItem(_lobbyChatHistoryListEntries.Count - 1);
     }
 
     private void OnClientStarted()
     {
-        if (!NetworkManager.Singleton.IsHost && LobbyManager.Singleton.JoinedLobbyId is { } lobbyId)
-        {
-            // TODO: store lobby name data in the LobbyManager
-            _lobbyNameTextField.value = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyName");
-            _maxPlayersIntField.value = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
-            RefreshLobbyMemberList();
-        }
+        UpdateLobbyElements();
     }
 
     private void OnClientStopped(bool isHost)
     {
+        _lobbyNameTextField.SetEnabled(true);
         _lobbyNameTextField.value = "";
+
+        _maxPlayersIntField.SetEnabled(true);
         _maxPlayersIntField.value = 10;
+
+        _friendsOnlyToggle.SetEnabled(true);
+        _friendsOnlyToggle.value = false;
+
         _lobbyMemberListEntries.Clear();
         _lobbyMemberListView.RefreshItems();
+
         _lobbyChatHistoryListEntries.Clear();
         _lobbyChatHistoryListView.RefreshItems();
-        UpdateLobbyElements(true);
+
+        _createLobbyButton.visible = true;
+        _deleteLobbyButton.visible = true;
+
+        _startMatchButton.UnregisterCallback<ClickEvent>(OnClickStartMatchButton);
+        _startMatchButton.UnregisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
+        _startMatchButton.text = "Start match";
+        _startMatchButton.RegisterCallback<ClickEvent>(OnClickStartMatchButton);
     }
 
     private void SteamOnRequestLobbyList(LobbyMatchList_t arg, bool bIOFailure)
@@ -337,9 +350,6 @@ public class LobbyDashboardMenu : MonoBehaviour
             NetworkManager.Singleton.Shutdown();
 
             _lobbyListView.RefreshItems();
-            _lobbyNameTextField.SetEnabled(true);
-            _maxPlayersIntField.SetEnabled(true);
-            _friendsOnlyToggle.SetEnabled(true);
             return;
         }
 
@@ -376,37 +386,44 @@ public class LobbyDashboardMenu : MonoBehaviour
         }
     }
 
-    private void UpdateLobbyElements(bool isCreateLobbyMode)
+    private void UpdateLobbyElements()
     {
-        // Reset callbacks
+        if (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsClient)
+            return;
+
+        _lobbyNameTextField.SetEnabled(false);
+        _maxPlayersIntField.SetEnabled(false);
+        _friendsOnlyToggle.SetEnabled(false);
+
+        // Reset callbacks.
         _startMatchButton.UnregisterCallback<ClickEvent>(OnClickStartMatchButton);
+        _startMatchButton.UnregisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
 
-        if (isCreateLobbyMode)
+        if (NetworkManager.Singleton.IsHost)
         {
-            _startMatchButton.text = "Start match";
-            _startMatchButton.RegisterCallback<ClickEvent>(OnClickStartMatchButton);
-
-            _lobbyNameTextField.SetEnabled(true);
-            _maxPlayersIntField.SetEnabled(true);
-            _friendsOnlyToggle.SetEnabled(true);
-            _createLobbyButton.SetEnabled(true);
-            _deleteLobbyButton.SetEnabled(true);
             _createLobbyButton.visible = true;
             _deleteLobbyButton.visible = true;
+
+            _startMatchButton.text = "Start match";
+            _startMatchButton.RegisterCallback<ClickEvent>(OnClickStartMatchButton);
         }
         else
         {
-            _startMatchButton.text = "Leave lobby";
-            _startMatchButton.RegisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
+            if (LobbyManager.Singleton.JoinedLobbyId is { } lobbyId)
+            {
+                // TODO: store lobby name data in the LobbyManager
+                _lobbyNameTextField.value = SteamMatchmaking.GetLobbyData(lobbyId, "LobbyName");
+                _maxPlayersIntField.value = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
+            }
 
-            _lobbyNameTextField.SetEnabled(false);
-            _maxPlayersIntField.SetEnabled(false);
-            _friendsOnlyToggle.SetEnabled(false);
-            _createLobbyButton.SetEnabled(false);
-            _deleteLobbyButton.SetEnabled(false);
             _createLobbyButton.visible = false;
             _deleteLobbyButton.visible = false;
+
+            _startMatchButton.text = "Leave lobby";
+            _startMatchButton.RegisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
         }
+
+        RefreshLobbyMemberList();
     }
 
     private void RefreshLobbyList()
@@ -440,14 +457,10 @@ public class LobbyDashboardMenu : MonoBehaviour
         // FIXME:
         // 로비 리스트가 5초마다 업데이트 되기 때문에
         // 방장이 삭제한 방에 참가할 수도 있다.
-
         if (JoiningLobbyData is { } lobbyData)
         {
-            UpdateLobbyElements(false);
-
             var lobbyOwnerId = new CSteamID(ulong.Parse(lobbyData.LobbyOwnerId));
             LobbyManager.Singleton.JoinLobby(lobbyData.LobbyId, lobbyOwnerId);
-
             JoiningLobbyData = null;
         }
         else
@@ -460,21 +473,12 @@ public class LobbyDashboardMenu : MonoBehaviour
     {
         LobbyManager.Singleton.LeaveLobby();
         NetworkManager.Singleton.Shutdown();
-
-        _lobbyNameTextField.value = "";
-        _maxPlayersIntField.value = 10;
-        UpdateLobbyElements(true);
     }
 
     private void OnClickCreateLobbyButton(ClickEvent evt)
     {
         if (NetworkManager.Singleton.StartHost())
         {
-            _lobbyListView.RefreshItems();
-            _lobbyNameTextField.SetEnabled(false);
-            _maxPlayersIntField.SetEnabled(false);
-            _friendsOnlyToggle.SetEnabled(false);
-
             if (string.IsNullOrEmpty(_lobbyNameTextField.value))
             {
                 _lobbyNameTextField.value = $"Lobby created by \"{SteamFriends.GetPersonaName()}\"";
@@ -493,14 +497,6 @@ public class LobbyDashboardMenu : MonoBehaviour
     {
         LobbyManager.Singleton.LeaveLobby();
         NetworkManager.Singleton.Shutdown();
-
-        _lobbyListView.RefreshItems();
-        _lobbyNameTextField.SetEnabled(true);
-        _maxPlayersIntField.SetEnabled(true);
-        _friendsOnlyToggle.SetEnabled(true);
-
-        _lobbyNameTextField.value = "";
-        _maxPlayersIntField.value = 10;
     }
 
     private void OnClickStartMatchButton(ClickEvent evt)
