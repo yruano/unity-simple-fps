@@ -160,11 +160,9 @@ public class LobbyManager : MonoBehaviour
             {
                 if (JoinedLobbyId is { } lobbyId)
                 {
-                    var maxPlayers = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
-                    var curPlayers = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
-                    Debug.Log(maxPlayers);
-                    Debug.Log(curPlayers);
-                    if (curPlayers >= maxPlayers)
+                    var maxPlayerCount = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
+                    var curPlayerCount = SteamMatchmaking.GetNumLobbyMembers(lobbyId);
+                    if (curPlayerCount >= maxPlayerCount)
                     {
                         NetworkManager.Singleton.DisconnectClient(clientId, "Server is full.");
                         return;

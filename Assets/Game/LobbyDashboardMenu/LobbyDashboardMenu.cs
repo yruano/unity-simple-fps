@@ -39,7 +39,10 @@ public class LobbyListEntryController
         this.data = data;
         _lobbyNameLabel.text = data.LobbyName;
         _lobbyOwnerLabel.text = data.LobbyOwnerName;
-        _lobbyJoinButton.SetEnabled(!NetworkManager.Singleton.IsHost);
+        _lobbyJoinButton.SetEnabled(
+            !NetworkManager.Singleton.IsHost &&
+            LobbyManager.Singleton.JoinedLobbyId != data.LobbyId
+        );
     }
 }
 
@@ -250,7 +253,7 @@ public class LobbyDashboardMenu : MonoBehaviour
         });
 
         // Request lobby list.
-        InvokeRepeating(nameof(RefreshLobbyList), 0, 5);
+        RefreshLobbyList();
 
         // Update lobby elements.
         UpdateLobbyElements();
@@ -423,13 +426,14 @@ public class LobbyDashboardMenu : MonoBehaviour
             _startMatchButton.RegisterCallback<ClickEvent>(OnClickLeaveLobbyButton);
         }
 
+        RefreshLobbyList();
         RefreshLobbyMemberList();
     }
 
     private void RefreshLobbyList()
     {
         _lobbyListEntries.Clear();
-        _lobbyListView.ClearSelection();
+        _lobbyListView.RefreshItems();
         _steamOnRequestLobbyList.Set(SteamMatchmaking.RequestLobbyList());
     }
 
@@ -448,15 +452,13 @@ public class LobbyDashboardMenu : MonoBehaviour
                 var memberRole = (i == 0) ? "Host" : "Client";
                 _lobbyMemberListEntries.Add(new LobbyMemberListEntryData { Name = memberName, Role = memberRole });
             }
-            _lobbyMemberListView.RefreshItems();
         }
+
+        _lobbyMemberListView.RefreshItems();
     }
 
     private void OnClickJoinLobbyButton(ClickEvent evt)
     {
-        // FIXME:
-        // 로비 리스트가 5초마다 업데이트 되기 때문에
-        // 방장이 삭제한 방에 참가할 수도 있다.
         if (JoiningLobbyData is { } lobbyData)
         {
             var lobbyOwnerId = new CSteamID(ulong.Parse(lobbyData.LobbyOwnerId));
