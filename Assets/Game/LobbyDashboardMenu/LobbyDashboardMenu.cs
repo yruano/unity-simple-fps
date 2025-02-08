@@ -391,7 +391,7 @@ public class LobbyDashboardMenu : MonoBehaviour
 
     private void UpdateLobbyElements()
     {
-        if (!NetworkManager.Singleton.IsHost && !NetworkManager.Singleton.IsClient)
+        if (!NetworkManager.Singleton.IsClient)
             return;
 
         _lobbyNameTextField.SetEnabled(false);
