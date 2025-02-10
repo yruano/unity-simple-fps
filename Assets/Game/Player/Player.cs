@@ -151,7 +151,6 @@ public class Player : NetworkBehaviour
         {
             _user = LobbyManager.Singleton.GetUserByClientId(OwnerClientId);
             _user.Player = this;
-            SetInputActive(true);
         }
 
         // Setup camera target.
@@ -167,6 +166,9 @@ public class Player : NetworkBehaviour
 
         if (IsOwner)
         {
+            // Enable player input.
+            SetPlayerInputActive(true);
+
             // Setup camera.
             _cmFirstPersonCamera = Instantiate(PrefabCmFirstPersonCamera);
             _cmFirstPersonCamera.Follow = _cameraTarget.transform;
@@ -230,7 +232,7 @@ public class Player : NetworkBehaviour
             else
             {
                 // Send input.
-                SendPlayerInputToServerRpc(input);
+                SendPlayerInputRpc(input);
 
                 // Client-side prediction.
                 OnUpdate(input, Time.fixedDeltaTime);
@@ -293,12 +295,12 @@ public class Player : NetworkBehaviour
                 {
                     _delayTick = 0;
                     var tick = lastProcessedTick;
-                    SendPlayerTickDataToOwnerRpc(GetTickData(tick), _weapon.GetSerializedTickData(tick));
+                    SendOwnerPlayerTickDataRpc(GetTickData(tick), _weapon.GetSerializedTickData(tick));
                 }
                 else
                 {
                     var tick = lastProcessedTick + _delayTick;
-                    SendPlayerTickDataToOwnerRpc(GetTickData(tick), _weapon.GetSerializedTickData(tick));
+                    SendOwnerPlayerTickDataRpc(GetTickData(tick), _weapon.GetSerializedTickData(tick));
                 }
             }
         }
@@ -329,72 +331,7 @@ public class Player : NetworkBehaviour
         }
     }
 
-    public Vector3 GetHeadPos()
-    {
-        return transform.position + _cameraTarget.Offset;
-    }
-
-    public Vector3 GetCameraDir()
-    {
-        return _cmFirstPersonCamera.transform.forward;
-    }
-
-    public PlayerTickData GetTickData(ulong tick)
-    {
-        return new PlayerTickData
-        {
-            Tick = tick,
-            HealthMax = HealthMax,
-            Health = Health,
-            VelocityY = _velocityY,
-            Position = transform.position,
-            CurrentWeaponType = _weapon.WeaponType,
-        };
-    }
-
-    public int GetTickDataIndexFromBuffer(ulong tick)
-    {
-        for (var i = 0; i < TickBuffer.Count; ++i)
-        {
-            if (TickBuffer[i].Tick == tick)
-                return i;
-        }
-        return -1;
-    }
-
-    public void ApplyTickData(PlayerTickData tickData)
-    {
-        // Apply stats.
-        HealthMax = tickData.HealthMax;
-        Health = tickData.Health;
-
-        // Apply velocity and position.
-        _velocityY = tickData.VelocityY;
-        _characterController.enabled = false;
-        transform.position = tickData.Position;
-        _characterController.enabled = true;
-
-        // Apply weapon.
-        _weapon = _weapons[tickData.CurrentWeaponType];
-    }
-
-    public void PushInputData(PlayerInput input)
-    {
-        if (InputBuffer.Count == InputBuffer.Capacity)
-            InputBuffer.PopFirst();
-        InputBuffer.Add(input);
-    }
-
-    public void PushCurrentTickData(ulong tick)
-    {
-        if (TickBuffer.Count == TickBuffer.Capacity)
-            TickBuffer.PopFirst();
-        TickBuffer.Add(GetTickData(tick));
-
-        _weapon.PushCurrentTickData(tick);
-    }
-
-    public void SetInputActive(bool value)
+    public void SetPlayerInputActive(bool value)
     {
         if (_cmInputAxisController != null)
         {
@@ -424,10 +361,82 @@ public class Player : NetworkBehaviour
         _characterController.enabled = value;
     }
 
-    private void Movement(Vector2 inputWalkDir, float deltaTime)
+    public Vector3 GetHeadPos()
     {
-        var forwardSpeed = inputWalkDir.y * WalkSpeed * deltaTime;
-        var rightSpeed = inputWalkDir.x * WalkSpeed * deltaTime;
+        return transform.position + _cameraTarget.Offset;
+    }
+
+    public Vector3 GetCameraDir()
+    {
+        return _cmFirstPersonCamera.transform.forward;
+    }
+
+    private PlayerTickData GetTickData(ulong tick)
+    {
+        return new PlayerTickData
+        {
+            Tick = tick,
+            HealthMax = HealthMax,
+            Health = Health,
+            VelocityY = _velocityY,
+            Position = transform.position,
+            CurrentWeaponType = _weapon.WeaponType,
+        };
+    }
+
+    private int GetTickDataIndexFromBuffer(ulong tick)
+    {
+        for (var i = 0; i < TickBuffer.Count; ++i)
+        {
+            if (TickBuffer[i].Tick == tick)
+                return i;
+        }
+        return -1;
+    }
+
+    private void ApplyTickData(PlayerTickData tickData)
+    {
+        // Apply stats.
+        HealthMax = tickData.HealthMax;
+        Health = tickData.Health;
+
+        // Apply velocity and position.
+        _velocityY = tickData.VelocityY;
+        _characterController.enabled = false;
+        transform.position = tickData.Position;
+        _characterController.enabled = true;
+
+        // Apply weapon.
+        _weapon = _weapons[tickData.CurrentWeaponType];
+    }
+
+    private void PushInputData(PlayerInput input)
+    {
+        if (InputBuffer.Count == InputBuffer.Capacity)
+            InputBuffer.PopFirst();
+        InputBuffer.Add(input);
+    }
+
+    private void PushCurrentTickData(ulong tick)
+    {
+        if (TickBuffer.Count == TickBuffer.Capacity)
+            TickBuffer.PopFirst();
+        TickBuffer.Add(GetTickData(tick));
+
+        _weapon.PushCurrentTickData(tick);
+    }
+
+    private void CharacterRotate(float angle)
+    {
+        var rotation = transform.eulerAngles;
+        rotation.y = angle;
+        transform.eulerAngles = rotation;
+    }
+
+    private void CharacterMovement(PlayerInput input, float deltaTime)
+    {
+        var forwardSpeed = input.InputWalkDir.y * WalkSpeed * deltaTime;
+        var rightSpeed = input.InputWalkDir.x * WalkSpeed * deltaTime;
         _velocityY = _characterController.isGrounded ? 0 : (_velocityY + -10f * deltaTime);
 
         _characterController.Move(
@@ -436,34 +445,33 @@ public class Player : NetworkBehaviour
             (transform.up * _velocityY * deltaTime));
     }
 
+    private void CharacterSwapWeapon(PlayerInput input)
+    {
+        if (_weaponSwapTarget != WeaponType.None)
+        {
+            Debug.Log($"WeaponSwap: {_weaponSwapTarget}");
+            _weapon = _weapons[_weaponSwapTarget];
+            _weaponSwapTarget = WeaponType.None;
+            _weapon.SetStateToIdle();
+        }
+
+        if (input.InputDownWeaponSwap)
+        {
+            _weapon.SetStateToHolster();
+            _weaponSwapTarget =
+                _weapon.WeaponType == WeaponType.GunPistol
+                ? WeaponType.GunAssaultRifle
+                : WeaponType.GunPistol;
+        }
+    }
+
     private void OnUpdate(PlayerInput input, float deltaTime)
     {
         if (!IsDead)
         {
-            // Character Rotate.
-            var rotation = transform.eulerAngles;
-            rotation.y = input.InputRotaionY;
-            transform.eulerAngles = rotation;
-
-            // Character movement.
-            Movement(input.InputWalkDir, deltaTime);
-
-            if (_weaponSwapTarget != WeaponType.None)
-            {
-                Debug.Log($"WeaponSwap: {_weaponSwapTarget}");
-                _weapon = _weapons[_weaponSwapTarget];
-                _weaponSwapTarget = WeaponType.None;
-                _weapon.SetStateToIdle();
-            }
-
-            if (input.InputDownWeaponSwap)
-            {
-                _weapon.SetStateToHolster();
-                _weaponSwapTarget =
-                    _weapon.WeaponType == WeaponType.GunPistol
-                    ? WeaponType.GunAssaultRifle
-                    : WeaponType.GunPistol;
-            }
+            CharacterRotate(input.InputRotaionY);
+            CharacterMovement(input, deltaTime);
+            CharacterSwapWeapon(input);
 
             // Update weapon.
             _weapon.OnUpdate(input, deltaTime);
@@ -564,15 +572,6 @@ public class Player : NetworkBehaviour
         SetPlayerActive(true);
     }
 
-    public void Respawn()
-    {
-        if (!IsDead)
-            return;
-
-        OnRespawn();
-        PlayerOnRespawnRpc();
-    }
-
     private void OnDeath()
     {
         IsDead = true;
@@ -580,6 +579,15 @@ public class Player : NetworkBehaviour
 
         foreach (var weapon in _weapons.Values)
             weapon.ResetWeapon();
+    }
+
+    public void Respawn()
+    {
+        if (!IsDead)
+            return;
+
+        OnRespawn();
+        OnRespawnRpc();
     }
 
     public void CheckDeath()
@@ -590,7 +598,7 @@ public class Player : NetworkBehaviour
         if (Health == 0)
         {
             OnDeath();
-            PlayerOnDeathRpc();
+            OnDeathRpc();
             Invoke(nameof(Respawn), 3.0f);
         }
     }
@@ -606,7 +614,7 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.NotServer)]
-    private void PlayerOnRespawnRpc(RpcParams rpcParams = default)
+    private void OnRespawnRpc(RpcParams rpcParams = default)
     {
         if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
             return;
@@ -615,7 +623,7 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.NotServer)]
-    private void PlayerOnDeathRpc(RpcParams rpcParams = default)
+    private void OnDeathRpc(RpcParams rpcParams = default)
     {
         if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
             return;
@@ -624,7 +632,7 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.Owner)]
-    private void SendPlayerTickDataToOwnerRpc(PlayerTickData tickData, byte[] weaponTickData, RpcParams rpcParams = default)
+    private void SendOwnerPlayerTickDataRpc(PlayerTickData tickData, byte[] weaponTickData, RpcParams rpcParams = default)
     {
         if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
             return;
@@ -664,10 +672,7 @@ public class Player : NetworkBehaviour
         if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
             return;
 
-        if (IsOwner)
-            return;
-
-        if (_lastServerTick >= tickData.Tick)
+        if (IsOwner || _lastServerTick >= tickData.Tick)
             return;
 
         _lastServerTick = tickData.Tick;
@@ -681,7 +686,7 @@ public class Player : NetworkBehaviour
     }
 
     [Rpc(SendTo.Server)]
-    public void SendPlayerInputToServerRpc(PlayerInput input)
+    public void SendPlayerInputRpc(PlayerInput input)
     {
         RecivedPlayerInputs.Enqueue(input);
     }

@@ -42,7 +42,7 @@ public class InGameEscapeMenu : MonoBehaviour
 
         var player = LobbyManager.Singleton.GetLocalUser().Player;
         if (player != null)
-            player.SetInputActive(!value);
+            player.SetPlayerInputActive(!value);
 
         _root.visible = value;
     }

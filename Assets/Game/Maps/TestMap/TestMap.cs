@@ -54,8 +54,6 @@ public class TestMap : MapBase
     private void SpawnPlayer(ulong clientId)
     {
         var player = Instantiate(PlayerPrefab);
-        player.SetInputActive(true);
-
         var networkPlayer = player.GetComponent<NetworkObject>();
         networkPlayer.transform.position = new(0, 3.0f, 0);
         networkPlayer.SpawnWithOwnership(clientId);
