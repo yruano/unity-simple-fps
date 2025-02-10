@@ -24,4 +24,6 @@ public abstract class Weapon : MonoBehaviour
     public abstract void RollbackToTick(ulong tick);
 
     public abstract void OnUpdate(PlayerInput input, float deltaTime);
+
+    public virtual void SpawnBulletTrail(Vector3 start, Vector3 end) { }
 }

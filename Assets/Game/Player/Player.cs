@@ -690,4 +690,13 @@ public class Player : NetworkBehaviour
     {
         RecivedPlayerInputs.Enqueue(input);
     }
+
+    [Rpc(SendTo.Everyone)]
+    public void SpawnBulletTrailRpc(WeaponType weaponType, Vector3 start, Vector3 end, RpcParams rpcParams = default)
+    {
+        if (rpcParams.Receive.SenderClientId != NetworkManager.Singleton.NetworkConfig.NetworkTransport.ServerClientId)
+            return;
+
+        _weapons[weaponType].SpawnBulletTrail(start, end);
+    }
 }

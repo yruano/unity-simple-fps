@@ -44,3 +44,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1673e5466fe775141b69a67516b0d86a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _context:
+    WeaponType: 0
+    CurrentStateIndex: 0
+    BulletTrailPrefab: {fileID: -895379496315333627, guid: 0eec7a75f24fa8a4492e1b01d37b6fbf, type: 3}
+    MagazineSize: 7
+    AmmoCount: 0

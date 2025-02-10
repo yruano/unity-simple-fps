@@ -42,8 +42,11 @@ public struct WeaponTickDataGunPistol : IWeaponTickData
     }
 }
 
+[Serializable]
 public class WeaponContextGunPistol : WeaponContext<TickData>
 {
+    public BulletTrail BulletTrailPrefab;
+
     public enum StateIndex : uint
     {
         None,
@@ -54,7 +57,7 @@ public class WeaponContextGunPistol : WeaponContext<TickData>
     }
 
     public int MagazineSize = 7;
-    public int AmmoCount;
+    [HideInInspector] public int AmmoCount;
     public GameTimer ShootTimer = new(0.3f);
     public GameTimer ReloadTimer = new(1.0f);
 
@@ -182,7 +185,6 @@ public class WeaponStateGunPistolShoot : WeaponState<TickData>
                 var rayDir = _input.InputCameraDir;
                 var rayDist = 100f;
 
-                Debug.DrawRay(rayPos, rayDir * rayDist, Color.red, 2);
                 if (Physics.Raycast(rayPos, rayDir, out var rayHitInfo, rayDist))
                 {
                     var collider = rayHitInfo.collider;
@@ -191,6 +193,12 @@ public class WeaponStateGunPistolShoot : WeaponState<TickData>
                         var player = collider.GetComponent<Player>();
                         player.ApplyDamage(_damage);
                     }
+
+                    stateMachine.Player.SpawnBulletTrailRpc(_context.WeaponType, rayPos, rayHitInfo.point);
+                }
+                else
+                {
+                    stateMachine.Player.SpawnBulletTrailRpc(_context.WeaponType, rayPos, rayPos + rayDir * rayDist);
                 }
             }
         });
@@ -245,7 +253,7 @@ public class WeaponStateGunPistolReload : WeaponState<TickData>
 
 public class WeaponGunPistol : Weapon
 {
-    private readonly Context _context = new();
+    [SerializeField] private Context _context = new();
     private readonly WeaponStateMachine<TickData> _stateMachine = new();
 
     public override Weapon Init(Player player)
@@ -342,5 +350,14 @@ public class WeaponGunPistol : Weapon
     public override void OnUpdate(PlayerInput input, float deltaTime)
     {
         _stateMachine.OnUpdate(input, deltaTime);
+    }
+
+    public override void SpawnBulletTrail(Vector3 start, Vector3 end)
+    {
+        if (_context.BulletTrailPrefab != null)
+        {
+            var bulletTrail = Instantiate(_context.BulletTrailPrefab);
+            bulletTrail.Init(0.2f, start, end);
+        }
     }
 }

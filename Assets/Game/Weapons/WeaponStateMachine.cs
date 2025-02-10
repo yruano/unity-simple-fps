@@ -25,10 +25,10 @@ public struct WeaponTickDataHeader : INetworkSerializeByMemcpy
 
 public abstract class WeaponContext<TickData> where TickData : struct, IWeaponTickData
 {
-    public WeaponType WeaponType;
-    public WeaponStateMachine<TickData> StateMachine;
-    public WeaponState<TickData>[] States;
-    public uint CurrentStateIndex;
+    [HideInInspector] public WeaponType WeaponType;
+    [HideInInspector] public WeaponStateMachine<TickData> StateMachine;
+    [HideInInspector] public WeaponState<TickData>[] States;
+    [HideInInspector] public uint CurrentStateIndex;
 
     public virtual void Init(WeaponType weaponType, WeaponStateMachine<TickData> stateMachine)
     {
