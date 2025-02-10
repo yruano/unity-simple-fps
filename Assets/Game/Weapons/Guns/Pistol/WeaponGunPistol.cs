@@ -158,20 +158,21 @@ public class WeaponStateGunPistolHolster : WeaponState<TickData>
 
 public class WeaponStateGunPistolShoot : WeaponState<TickData>
 {
+    private readonly Context _context;
     private PlayerInput _input;
     private int _damage = 20;
 
     public WeaponStateGunPistolShoot(WeaponStateMachine<TickData> stateMachine) : base(stateMachine)
     {
-        var ctx = (Context)StateMachine.Context;
+        _context = (Context)StateMachine.Context;
 
-        ctx.ShootTimer.AddCallback(0, () =>
+        _context.ShootTimer.AddCallback(0, () =>
         {
-            if (ctx.AmmoCount == 0)
+            if (_context.AmmoCount == 0)
                 return;
 
             // Client prediction.
-            ctx.AmmoCount -= 1;
+            _context.AmmoCount -= 1;
             // 이펙트 및 애니메이션 실행
 
             // Hit check.
@@ -197,53 +198,48 @@ public class WeaponStateGunPistolShoot : WeaponState<TickData>
 
     public override bool IsDone()
     {
-        var ctx = (Context)StateMachine.Context;
-        return ctx.ShootTimer.IsEnded;
+        return _context.ShootTimer.IsEnded;
     }
 
     public override void OnStateExit()
     {
-        var ctx = (Context)StateMachine.Context;
-        ctx.ShootTimer.Reset();
+        _context.ShootTimer.Reset();
     }
 
     public override void OnStateUpdate(PlayerInput input, float deltaTime)
     {
         _input = input;
-
-        var ctx = (Context)StateMachine.Context;
-        ctx.ShootTimer.Tick(deltaTime);
+        _context.ShootTimer.Tick(deltaTime);
     }
 }
 
 public class WeaponStateGunPistolReload : WeaponState<TickData>
 {
+    private readonly Context _context;
+
     public WeaponStateGunPistolReload(WeaponStateMachine<TickData> stateMachine) : base(stateMachine)
     {
-        var ctx = (Context)StateMachine.Context;
+        _context = (Context)StateMachine.Context;
 
-        ctx.ReloadTimer.AddCallback(ctx.ReloadTimer.Duration - 0.2f, () =>
+        _context.ReloadTimer.AddCallback(_context.ReloadTimer.Duration - 0.2f, () =>
         {
-            ctx.AmmoCount = ctx.MagazineSize;
+            _context.AmmoCount = _context.MagazineSize;
         });
     }
 
     public override bool IsDone()
     {
-        var ctx = (Context)StateMachine.Context;
-        return ctx.ReloadTimer.IsEnded;
+        return _context.ReloadTimer.IsEnded;
     }
 
     public override void OnStateExit()
     {
-        var ctx = (Context)StateMachine.Context;
-        ctx.ReloadTimer.Reset();
+        _context.ReloadTimer.Reset();
     }
 
     public override void OnStateUpdate(PlayerInput input, float deltaTime)
     {
-        var ctx = (Context)StateMachine.Context;
-        ctx.ReloadTimer.Tick(deltaTime);
+        _context.ReloadTimer.Tick(deltaTime);
     }
 }
 

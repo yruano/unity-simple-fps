@@ -39,10 +39,9 @@ public class LobbyListEntryController
         this.data = data;
         _lobbyNameLabel.text = data.LobbyName;
         _lobbyOwnerLabel.text = data.LobbyOwnerName;
-        _lobbyJoinButton.SetEnabled(
-            !NetworkManager.Singleton.IsHost &&
-            LobbyManager.Singleton.JoinedLobbyId != data.LobbyId
-        );
+
+        var isJoinable = !NetworkManager.Singleton.IsHost && LobbyManager.Singleton.JoinedLobbyId != data.LobbyId;
+        _lobbyJoinButton.SetEnabled(isJoinable);
     }
 }
 
@@ -223,7 +222,8 @@ public class LobbyDashboardMenu : MonoBehaviour
         };
         _lobbyMemberListView.bindItem = (item, index) =>
         {
-            (item.userData as LobbyMemberListEntryController)?.UpdateElements(_lobbyMemberListEntries[index]);
+            if (item.userData is LobbyMemberListEntryController controller)
+                controller.UpdateElements(_lobbyMemberListEntries[index]);
         };
 
         // Setup LobbyChatHistortListView.
@@ -236,20 +236,24 @@ public class LobbyDashboardMenu : MonoBehaviour
         };
         _lobbyChatHistoryListView.bindItem = (item, index) =>
         {
-            (item.userData as LobbyChatHistoryListEntryController)?.UpdateElements(_lobbyChatHistoryListEntries[index]);
+            if (item.userData is LobbyChatHistoryListEntryController controller)
+                controller.UpdateElements(_lobbyChatHistoryListEntries[index]);
         };
 
         // Setup LobbyChatTextField.
         _lobbyChatTextField.SetEnabled(false);
-        _lobbyChatTextField.RegisterCallback<ChangeEvent<string>>((evt) =>
+        _lobbyChatTextField.RegisterCallback<NavigationSubmitEvent>(evt =>
         {
-            if (string.IsNullOrEmpty(evt.newValue) || LobbyChatManager == null)
+            var text = _lobbyChatTextField.value;
+            if (string.IsNullOrEmpty(text))
                 return;
 
-            var name = LobbyManager.Singleton.GetLocalUser().Name;
-            var message = evt.newValue;
-            LobbyChatManager.BroadcastMessageRpc(name, message);
-            _lobbyChatTextField.value = "";
+            if (LobbyChatManager != null)
+            {
+                var name = LobbyManager.Singleton.GetLocalUser().Name;
+                LobbyChatManager.BroadcastMessageRpc(name, text);
+                _lobbyChatTextField.value = "";
+            }
         });
 
         // Request lobby list.

@@ -4,13 +4,13 @@
         <engine:VisualElement style="flex-direction: row;">
             <engine:Button text="Back" name="BackButton" style="margin-top: 4px; margin-right: 4px; margin-bottom: 4px; margin-left: 4px; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px; font-size: 16px; flex-shrink: 1;" />
         </engine:VisualElement>
-        <engine:VisualElement style="padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0; flex-direction: row; flex-grow: 1;">
-            <engine:VisualElement style="flex-grow: 0; background-color: rgb(43, 43, 43); margin-right: 5px; width: 400px; flex-shrink: 0;">
+        <engine:VisualElement style="padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0; flex-direction: row; flex-grow: 1; margin-top: 4px; margin-right: 4px; margin-bottom: 4px; margin-left: 4px;">
+            <engine:VisualElement style="flex-grow: 0; background-color: rgb(43, 43, 43); margin-right: 4px; width: 400px; flex-shrink: 0;">
                 <engine:Label text="Lobby list" style="color: rgb(255, 255, 255); font-size: 16px; -unity-text-align: upper-center; border-bottom-width: 2px; border-left-color: rgb(26, 26, 26); border-right-color: rgb(26, 26, 26); border-top-color: rgb(26, 26, 26); border-bottom-color: rgb(26, 26, 26); margin-top: 4px; margin-right: 4px; margin-bottom: 4px; margin-left: 4px; padding-top: 4px; padding-right: 4px; padding-bottom: 4px; padding-left: 4px;" />
                 <engine:ListView name="LobbyListView" virtualization-method="DynamicHeight" style="flex-grow: 1; margin-top: 4px; margin-right: 4px; margin-bottom: 4px; margin-left: 4px;" />
                 <engine:Button text="Refresh" name="RefreshButton" style="margin-top: 4px; margin-right: 4px; margin-bottom: 4px; margin-left: 4px; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px; font-size: 16px;" />
             </engine:VisualElement>
-            <engine:VisualElement style="flex-grow: 1; margin-left: 5px; background-color: rgb(43, 43, 43);">
+            <engine:VisualElement style="flex-grow: 1; margin-left: 0; background-color: rgb(43, 43, 43); margin-top: 0; margin-right: 0; margin-bottom: 0;">
                 <engine:VisualElement style="flex-direction: row; align-items: center;">
                     <engine:TextField placeholder-text="Lobby name" name="LobbyNameTextField" style="margin-top: 4px; width: 400px; margin-right: 4px; margin-bottom: 4px; margin-left: 4px; font-size: 16px;" />
                     <engine:Label text="Max players:" style="color: rgb(255, 255, 255); margin-top: 2px; margin-right: 2px; margin-bottom: 2px; margin-left: 4px; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0; font-size: 16px;" />
@@ -35,7 +35,7 @@
                         </engine:VisualElement>
                         <engine:VisualElement style="height: 400px; flex-direction: row;">
                             <engine:VisualElement style="height: 400px; flex-grow: 1; flex-shrink: 1;">
-                                <engine:ListView name="LobbyChatHistoryListView" virtualization-method="DynamicHeight" selection-type="None" style="margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0; flex-grow: 1;" />
+                                <engine:ListView name="LobbyChatHistoryListView" virtualization-method="DynamicHeight" selection-type="None" class="chatHistoryContainer" style="margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0; flex-grow: 1;" />
                                 <engine:TextField placeholder-text="Chat message..." name="LobbyChatTextField" is-delayed="true" style="margin-top: 2px; margin-right: 2px; margin-bottom: 4px; margin-left: 2px; font-size: 16px;" />
                             </engine:VisualElement>
                             <engine:VisualElement style="justify-content: flex-end; flex-shrink: 0;">

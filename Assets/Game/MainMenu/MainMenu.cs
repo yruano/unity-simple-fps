@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 using Unity.Netcode;
@@ -26,6 +27,9 @@ public class MainMenu : MonoBehaviour
 
         UnityEngine.Cursor.lockState = CursorLockMode.None;
         UnityEngine.Cursor.visible = true;
+
+        // Disable ctrl+backspace debug menu.
+        DebugManager.instance.enableRuntimeUI = false;
     }
 
     private void Start()

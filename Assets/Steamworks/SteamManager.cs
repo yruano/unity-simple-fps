@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Threading.Tasks;
 using Steamworks;
 using UnityEngine;
 
@@ -8,7 +9,7 @@ public class SteamManager : MonoBehaviour
     public static readonly AppId_t AppId = new(480); // https://steamdb.info/app/480/info/
     public static bool IsInitialized { get; private set; } = false;
 
-    private void Awake()
+    private async void Awake()
     {
         if (Singleton != null)
         {
@@ -19,9 +20,7 @@ public class SteamManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         InitSteamworks();
-
-        var coroUpdate = CoroUpdate();
-        StartCoroutine(coroUpdate);
+        await RunCallbacks();
     }
 
     private void OnDestroy()
@@ -38,20 +37,18 @@ public class SteamManager : MonoBehaviour
         }
     }
 
-    IEnumerator CoroUpdate()
+    private async Task RunCallbacks()
     {
-        while (Singleton != null)
+        while (!destroyCancellationToken.IsCancellationRequested)
         {
-            if (IsInitialized)
+            if (Singleton != null && IsInitialized)
             {
                 // Run Steam client callbacks
                 SteamAPI.RunCallbacks();
             }
 
-            yield return new WaitForEndOfFrame();
+            await Awaitable.NextFrameAsync();
         }
-
-        yield return null;
     }
 
     private void InitSteamworks()
