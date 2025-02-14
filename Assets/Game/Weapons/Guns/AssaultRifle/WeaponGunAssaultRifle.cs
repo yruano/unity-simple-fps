@@ -58,7 +58,7 @@ public class WeaponContextGunAssaultRifle : WeaponContext<TickData>
 
     public int MagazineSize = 20;
     [HideInInspector] public int AmmoCount;
-    public GameTimer ShootTimer = new(0.1f);
+    public GameTimer ShootTimer = new(0.05f);
     public GameTimer ReloadTimer = new(1.0f);
 
     public override void Init(WeaponType weaponType, WeaponStateMachine<TickData> stateMachine)

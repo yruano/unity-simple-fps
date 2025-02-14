@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEngine;
 using Unity.Netcode;
 
+[Serializable]
 public struct GameTimer : INetworkSerializable
 {
     public class Callback
@@ -13,9 +14,9 @@ public struct GameTimer : INetworkSerializable
     }
 
     public float Duration;
-    public float Time;
-    public int CallbackIndex;
-    public List<Callback> Callbacks;
+    [HideInInspector] public float Time;
+    [HideInInspector] public int CallbackIndex;
+    [HideInInspector] public List<Callback> Callbacks;
 
     public bool IsEnded => Time >= Duration;
 
