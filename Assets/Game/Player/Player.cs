@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 using Unity.Properties;
 using Unity.Cinemachine;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 
 public struct PlayerInput : INetworkSerializable
 {
@@ -18,6 +19,7 @@ public struct PlayerInput : INetworkSerializable
     public bool InputHoldWeaponShoot;
     public bool InputHoldWeaponAim;
     public bool InputDownWeaponReload;
+    public bool InputDownGrenadeThrow;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
@@ -30,6 +32,7 @@ public struct PlayerInput : INetworkSerializable
         serializer.SerializeValue(ref InputHoldWeaponShoot);
         serializer.SerializeValue(ref InputHoldWeaponAim);
         serializer.SerializeValue(ref InputDownWeaponReload);
+        serializer.SerializeValue(ref InputDownGrenadeThrow);
     }
 
     public void ResetInputDown()
@@ -37,6 +40,7 @@ public struct PlayerInput : INetworkSerializable
         InputDownWeaponSwap = false;
         InputDownWeaponShoot = false;
         InputDownWeaponReload = false;
+        InputDownGrenadeThrow = false;
     }
 }
 
@@ -48,6 +52,8 @@ public struct PlayerTickData : INetworkSerializable
     public float VelocityY;
     public Vector3 Position;
     public WeaponType CurrentWeaponType;
+    public bool IsThrowingGrenade;
+    public float GrenadeThrowTimerTime;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
@@ -57,6 +63,8 @@ public struct PlayerTickData : INetworkSerializable
         serializer.SerializeValue(ref VelocityY);
         serializer.SerializeValue(ref Position);
         serializer.SerializeValue(ref CurrentWeaponType);
+        serializer.SerializeValue(ref IsThrowingGrenade);
+        serializer.SerializeValue(ref GrenadeThrowTimerTime);
     }
 }
 
@@ -85,6 +93,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private PlayerCameraTarget PrefabPlayerCameraTarget;
     [SerializeField] private Weapon PrefabWeaponGunPistol;
     [SerializeField] private Weapon PrefabWeaponGunAssaultRifle;
+    [SerializeField] private Grenade PrefabGrenade;
 
     private GameUser _user;
 
@@ -104,6 +113,7 @@ public class Player : NetworkBehaviour
     private InputAction _inputWeaponShoot;
     private InputAction _inputWeaponAim;
     private InputAction _inputWeaponReload;
+    private InputAction _inputGrenadeThrow;
 
     // Stats
     public bool IsDead { get; private set; } = false;
@@ -115,6 +125,10 @@ public class Player : NetworkBehaviour
     private Dictionary<WeaponType, Weapon> _weapons = new();
     private Weapon _weapon;
     private WeaponType _weaponSwapTarget = WeaponType.None;
+
+    // Grenade
+    public bool IsThrowingGrenade = false;
+    private GameTimer _grenadeThrowTimer = new(0.5f);
 
     // Networking
     private ulong _tick = 0;
@@ -130,6 +144,7 @@ public class Player : NetworkBehaviour
     public PlayerInput LastPlayerInput = new();
     public Queue<PlayerInput> RecivedPlayerInputs = new();
 
+    // Interpolation
     private Vector3 _startPos;
     private Vector3 _nextPos;
     private float _interpolateTime;
@@ -145,6 +160,7 @@ public class Player : NetworkBehaviour
         _inputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
         _inputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
         _inputWeaponReload = InputSystem.actions.FindAction("Player/WeaponReload");
+        _inputGrenadeThrow = InputSystem.actions.FindAction("Player/GrenadeThrow");
 
         Health = HealthMax;
     }
@@ -243,6 +259,7 @@ public class Player : NetworkBehaviour
                 InputHoldWeaponShoot = _inputWeaponShoot.IsPressed(),
                 InputHoldWeaponAim = _inputWeaponAim.IsPressed(),
                 InputDownWeaponReload = _inputWeaponReload.WasPressedThisFrame(),
+                InputDownGrenadeThrow = _inputGrenadeThrow.WasPressedThisFrame(),
             };
 
             if (IsHost)
@@ -360,17 +377,11 @@ public class Player : NetworkBehaviour
 
         if (value)
         {
-            _inputMove.Enable();
-            _inputWeaponShoot.Enable();
-            _inputWeaponAim.Enable();
-            _inputWeaponReload.Enable();
+            InputSystem.actions.FindActionMap("Player").Enable();
         }
         else
         {
-            _inputMove.Disable();
-            _inputWeaponShoot.Disable();
-            _inputWeaponAim.Disable();
-            _inputWeaponReload.Disable();
+            InputSystem.actions.FindActionMap("Player").Disable();
         }
     }
 
@@ -401,6 +412,8 @@ public class Player : NetworkBehaviour
             VelocityY = _velocityY,
             Position = transform.position,
             CurrentWeaponType = _weapon.WeaponType,
+            IsThrowingGrenade = IsThrowingGrenade,
+            GrenadeThrowTimerTime = _grenadeThrowTimer.Time,
         };
     }
 
@@ -428,6 +441,10 @@ public class Player : NetworkBehaviour
 
         // Apply weapon.
         _weapon = _weapons[tickData.CurrentWeaponType];
+
+        // Apply grenade.
+        IsThrowingGrenade = tickData.IsThrowingGrenade;
+        _grenadeThrowTimer.Time = tickData.GrenadeThrowTimerTime;
     }
 
     private void PushInputData(PlayerInput input)
@@ -485,6 +502,35 @@ public class Player : NetworkBehaviour
         }
     }
 
+    private void CharacterGrenadeThrow(PlayerInput input, float deltaTime)
+    {
+        if (input.InputDownGrenadeThrow)
+        {
+            IsThrowingGrenade = true;
+            // TODO: play animation and vfx
+        }
+
+        if (IsThrowingGrenade)
+        {
+            _grenadeThrowTimer.Tick(deltaTime);
+            if (_grenadeThrowTimer.IsEnded)
+            {
+                IsThrowingGrenade = false;
+
+                if (IsHost)
+                {
+                    var grenade = Instantiate(PrefabGrenade);
+                    var networkGrenade = grenade.GetComponent<NetworkObject>();
+                    var forward = Quaternion.AngleAxis(-50f, transform.right) * transform.forward;
+                    networkGrenade.transform.position = GetHeadPos() + transform.forward;
+                    networkGrenade.transform.forward = forward;
+                    networkGrenade.Spawn();
+                    grenade.GetComponent<Rigidbody>().AddForce(forward * 500f);
+                }
+            }
+        }
+    }
+
     private void OnUpdate(PlayerInput input, float deltaTime)
     {
         if (!IsDead)
@@ -492,6 +538,7 @@ public class Player : NetworkBehaviour
             CharacterRotate(input.InputRotaionY);
             CharacterMovement(input, deltaTime);
             CharacterSwapWeapon(input);
+            CharacterGrenadeThrow(input, deltaTime);
 
             // Update weapon.
             _weapon.OnUpdate(input, deltaTime);
@@ -697,9 +744,7 @@ public class Player : NetworkBehaviour
 
         _lastServerTick = tickData.Tick;
 
-        var rotation = transform.eulerAngles;
-        rotation.y = tickData.RotaionY;
-        transform.eulerAngles = rotation;
+        CharacterRotate(tickData.RotaionY);
 
         _startPos = transform.position;
         _nextPos = tickData.Position;

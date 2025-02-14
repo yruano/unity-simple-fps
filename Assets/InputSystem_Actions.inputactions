@@ -18,7 +18,7 @@
                     "name": "Submit",
                     "type": "Button",
                     "id": "7607c7b6-cd76-4816-beef-bd0341cfe950",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
@@ -524,16 +524,34 @@
                 {
                     "name": "Move",
                     "type": "Value",
-                    "id": "ebeff9c0-d1a1-4a64-93ae-9a9d60d3860e",
+                    "id": "d3211a27-5532-4ad5-a4f7-5d29ed13853c",
                     "expectedControlType": "Vector2",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
                 },
                 {
+                    "name": "Look",
+                    "type": "Value",
+                    "id": "97f6f2ea-8921-4834-b0f9-c84d22120262",
+                    "expectedControlType": "Vector2",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "WeaponSwap",
+                    "type": "Button",
+                    "id": "19a68a0b-d197-4129-b5e0-997f02e2f723",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "WeaponShoot",
                     "type": "Button",
-                    "id": "41358709-2c57-4ac1-b26f-5692e9600016",
+                    "id": "fdb1aaf1-8670-401a-95e2-68a7324d4523",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -542,7 +560,7 @@
                 {
                     "name": "WeaponAim",
                     "type": "Button",
-                    "id": "4e5c0bc9-a528-443f-b494-a9bd673e9f2f",
+                    "id": "8044b932-cbc3-4328-b770-994602a6e5fe",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -551,16 +569,16 @@
                 {
                     "name": "WeaponReload",
                     "type": "Button",
-                    "id": "8a756605-2709-4324-a65e-68ed31892651",
+                    "id": "1a84e7ed-8d09-41b8-854c-288259158775",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
                 },
                 {
-                    "name": "WeaponSwap",
+                    "name": "GrenadeThrow",
                     "type": "Button",
-                    "id": "59e9bb1a-36f8-461c-80eb-10265894dba5",
+                    "id": "68516347-9969-47e6-a9ca-1c4c9097a18d",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -570,7 +588,7 @@
             "bindings": [
                 {
                     "name": "WASD",
-                    "id": "1891b759-f0e4-4cb3-83a8-7449f8ff93cd",
+                    "id": "3d8c12e1-b0c5-4c24-92c2-1f4543bc3696",
                     "path": "2DVector",
                     "interactions": "",
                     "processors": "",
@@ -581,7 +599,7 @@
                 },
                 {
                     "name": "up",
-                    "id": "07a61699-a031-4f2a-8676-20c3cdd5b71a",
+                    "id": "d2d4d72d-4ed1-40a4-a795-15a563f9b2f4",
                     "path": "<Keyboard>/w",
                     "interactions": "",
                     "processors": "",
@@ -592,7 +610,7 @@
                 },
                 {
                     "name": "down",
-                    "id": "de1978fe-25bb-4129-bf5f-7d0c2f8b5b6b",
+                    "id": "c67d57cf-cfe0-4be2-86aa-6f811f4d23f9",
                     "path": "<Keyboard>/s",
                     "interactions": "",
                     "processors": "",
@@ -603,7 +621,7 @@
                 },
                 {
                     "name": "left",
-                    "id": "0fb86593-b3de-4c25-986a-4aadf08b1760",
+                    "id": "950bf911-5d1e-4aa1-8ba3-6890b024f7db",
                     "path": "<Keyboard>/a",
                     "interactions": "",
                     "processors": "",
@@ -614,7 +632,7 @@
                 },
                 {
                     "name": "right",
-                    "id": "b1d4a9ee-a07d-4c70-85b5-22d0fb21ff06",
+                    "id": "250a4032-5504-4297-ba55-a80dc824599c",
                     "path": "<Keyboard>/d",
                     "interactions": "",
                     "processors": "",
@@ -625,7 +643,29 @@
                 },
                 {
                     "name": "",
-                    "id": "a1911771-c9a2-4eac-895e-cc5eaa11d5d5",
+                    "id": "4de5d70c-4844-4c55-b142-c90fc6f707ef",
+                    "path": "<Gamepad>/rightStick",
+                    "interactions": "",
+                    "processors": "ScaleVector2(x=100,y=100)",
+                    "groups": ";Gamepad",
+                    "action": "Look",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "2992143e-0721-4fd0-a6b0-1da29d5ffc32",
+                    "path": "<Pointer>/delta",
+                    "interactions": "",
+                    "processors": "DeltaTimeScale,ScaleVector2(x=0.1,y=0.1)",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "Look",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "337c711b-dc16-45cc-8136-9dc0ff6e8018",
                     "path": "<Mouse>/leftButton",
                     "interactions": "",
                     "processors": "",
@@ -636,7 +676,7 @@
                 },
                 {
                     "name": "",
-                    "id": "23849e39-cdf2-4cc0-8476-9c19e42d727d",
+                    "id": "4562df7d-e6ee-43b2-9fb8-77b0bc3e85a4",
                     "path": "<Keyboard>/r",
                     "interactions": "",
                     "processors": "",
@@ -647,7 +687,7 @@
                 },
                 {
                     "name": "",
-                    "id": "9a3a3d1d-755c-46f9-9932-b784196b94a8",
+                    "id": "79f7ebc6-62a3-4472-a468-6cb7114c61ee",
                     "path": "<Mouse>/rightButton",
                     "interactions": "",
                     "processors": "",
@@ -658,12 +698,23 @@
                 },
                 {
                     "name": "",
-                    "id": "aa4cab59-fab9-40e9-bace-73f1aefb778e",
-                    "path": "<Keyboard>/1",
+                    "id": "5286c271-0d11-4b61-b685-86401e1e4a6a",
+                    "path": "<Keyboard>/f",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
                     "action": "WeaponSwap",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "491fca2b-a3a9-4f1a-b466-e7b74d837db2",
+                    "path": "<Keyboard>/g",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "GrenadeThrow",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
@@ -671,12 +722,12 @@
         },
         {
             "name": "InGame",
-            "id": "2a7b12ac-efdf-430a-ae9b-b9467c0d79e9",
+            "id": "63750fb9-7858-4b87-8ed8-26906e70353b",
             "actions": [
                 {
                     "name": "Escape",
                     "type": "Button",
-                    "id": "915610d9-ce54-4171-92bd-452a85e0011b",
+                    "id": "d7c20da5-5d63-4592-a2c2-33092bd5da81",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -686,7 +737,7 @@
             "bindings": [
                 {
                     "name": "",
-                    "id": "91a19a42-336b-4ab5-bd92-702de9835130",
+                    "id": "c1d83479-b1f4-45ad-8046-60f8be1e7f68",
                     "path": "<Keyboard>/escape",
                     "interactions": "",
                     "processors": "",

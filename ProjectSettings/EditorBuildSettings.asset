@@ -15,6 +15,6 @@ EditorBuildSettings:
     path: Assets/Game/Maps/TestMap/TestMap.unity
     guid: f4a21af959153a54ea411c7ea27038ec
   m_configObjects:
-    com.unity.input.settings: {fileID: 11400000, guid: 08f34aaf96e6f0943bf861fdb38f8220, type: 2}
+    com.unity.input.settings: {fileID: 11400000, guid: b7c84032d935fdb4580a0b1aaba50c65, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
