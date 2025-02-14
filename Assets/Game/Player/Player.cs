@@ -130,6 +130,10 @@ public class Player : NetworkBehaviour
     public PlayerInput LastPlayerInput = new();
     public Queue<PlayerInput> RecivedPlayerInputs = new();
 
+    private Vector3 _startPos;
+    private Vector3 _nextPos;
+    private float _interpolateTime;
+
     private void Awake()
     {
         _visual = transform.GetChild(0).gameObject;
@@ -183,6 +187,8 @@ public class Player : NetworkBehaviour
         if (!IsHost && !IsOwner)
         {
             _characterController.enabled = false;
+            _startPos = transform.position;
+            _nextPos = transform.position;
         }
 
         base.OnNetworkSpawn();
@@ -195,6 +201,20 @@ public class Player : NetworkBehaviour
         Destroy(_weapon);
 
         base.OnDestroy();
+    }
+
+    private void Update()
+    {
+        if (!IsSpawned)
+            return;
+
+        if (!IsHost && !IsOwner)
+        {
+            // Interpolation
+            transform.position = Vector3.LerpUnclamped(_startPos, _nextPos, _interpolateTime * 50);
+            _interpolateTime += Time.deltaTime;
+            _visual.transform.Teleport(Vector3.zero, Quaternion.identity);
+        }
     }
 
     private void FixedUpdate()
@@ -681,8 +701,9 @@ public class Player : NetworkBehaviour
         rotation.y = tickData.RotaionY;
         transform.eulerAngles = rotation;
 
-        transform.position = tickData.Position;
-        _visual.transform.Teleport(Vector3.zero, Quaternion.identity);
+        _startPos = transform.position;
+        _nextPos = tickData.Position;
+        _interpolateTime = 0;
     }
 
     [Rpc(SendTo.Server)]
