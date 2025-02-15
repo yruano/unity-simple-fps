@@ -13,6 +13,7 @@ public struct PlayerInput : INetworkSerializable
     public float InputRotaionY;
     public Vector3 InputCameraDir;
     public Vector2 InputWalkDir;
+    public bool InputHoldJump;
     public bool InputDownWeaponSwap;
     public bool InputDownWeaponShoot;
     public bool InputHoldWeaponShoot;
@@ -26,6 +27,7 @@ public struct PlayerInput : INetworkSerializable
         serializer.SerializeValue(ref InputRotaionY);
         serializer.SerializeValue(ref InputCameraDir);
         serializer.SerializeValue(ref InputWalkDir);
+        serializer.SerializeValue(ref InputHoldJump);
         serializer.SerializeValue(ref InputDownWeaponSwap);
         serializer.SerializeValue(ref InputDownWeaponShoot);
         serializer.SerializeValue(ref InputHoldWeaponShoot);
@@ -108,6 +110,7 @@ public class Player : NetworkBehaviour
 
     // Inputs
     private InputAction _inputMove;
+    private InputAction _inputJump;
     private InputAction _inputWeaponSwap;
     private InputAction _inputWeaponShoot;
     private InputAction _inputWeaponAim;
@@ -155,6 +158,7 @@ public class Player : NetworkBehaviour
         _characterController = GetComponent<CharacterController>();
 
         _inputMove = InputSystem.actions.FindAction("Player/Move");
+        _inputJump = InputSystem.actions.FindAction("Player/Jump");
         _inputWeaponSwap = InputSystem.actions.FindAction("Player/WeaponSwap");
         _inputWeaponShoot = InputSystem.actions.FindAction("Player/WeaponShoot");
         _inputWeaponAim = InputSystem.actions.FindAction("Player/WeaponAim");
@@ -253,6 +257,7 @@ public class Player : NetworkBehaviour
                 InputRotaionY = _cmFirstPersonCamera.transform.eulerAngles.y,
                 InputCameraDir = GetCameraDir(),
                 InputWalkDir = _inputMove.ReadValue<Vector2>(),
+                InputHoldJump = _inputJump.IsPressed(),
                 InputDownWeaponSwap = _inputWeaponSwap.WasPressedThisFrame(),
                 InputDownWeaponShoot = _inputWeaponShoot.WasPressedThisFrame(),
                 InputHoldWeaponShoot = _inputWeaponShoot.IsPressed(),
@@ -471,14 +476,24 @@ public class Player : NetworkBehaviour
 
     private void CharacterMovement(PlayerInput input, float deltaTime)
     {
+        // Get walk speed.
         var forwardSpeed = input.InputWalkDir.y * WalkSpeed * deltaTime;
         var rightSpeed = input.InputWalkDir.x * WalkSpeed * deltaTime;
+
+        // Calculate gravity.
         _velocityY = _characterController.isGrounded ? 0 : (_velocityY + -10f * deltaTime);
 
+        // Set jump velocity.
+        if (_characterController.isGrounded && input.InputHoldJump)
+        {
+            _velocityY = 4f;
+        }
+
+        // Move character.
         _characterController.Move(
             (transform.forward * forwardSpeed) +
             (transform.right * rightSpeed) +
-            (transform.up * _velocityY * deltaTime));
+            (transform.up * (_velocityY * deltaTime)));
     }
 
     private void CharacterSwapWeapon(PlayerInput input)
