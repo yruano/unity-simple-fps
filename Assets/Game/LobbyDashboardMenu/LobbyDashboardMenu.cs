@@ -188,6 +188,7 @@ public class LobbyDashboardMenu : MonoBehaviour
         _refreshButton.RegisterCallback<ClickEvent>(evt => RefreshLobbyList());
 
         // Setup LobbyListView.
+        _lobbyListView.makeNoneElement = () => null;
         _lobbyListView.itemsSource = _lobbyListEntries;
         _lobbyListView.makeItem = () =>
         {
@@ -213,6 +214,7 @@ public class LobbyDashboardMenu : MonoBehaviour
         _deleteLobbyButton.RegisterCallback<ClickEvent>(OnClickDeleteLobbyButton);
 
         // Setup LobbyMemberListView.
+        _lobbyMemberListView.makeNoneElement = () => null;
         _lobbyMemberListView.itemsSource = _lobbyMemberListEntries;
         _lobbyMemberListView.makeItem = () =>
         {
@@ -227,6 +229,7 @@ public class LobbyDashboardMenu : MonoBehaviour
         };
 
         // Setup LobbyChatHistortListView.
+        _lobbyChatHistoryListView.makeNoneElement = () => null;
         _lobbyChatHistoryListView.itemsSource = _lobbyChatHistoryListEntries;
         _lobbyChatHistoryListView.makeItem = () =>
         {
