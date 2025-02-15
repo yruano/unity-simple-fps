@@ -4,10 +4,13 @@ using Unity.Netcode;
 public class Grenade : NetworkBehaviour
 {
     private NetworkObject _networkObject;
-    private GameTimer _despawnTimer = new(3.0f);
     private Rigidbody _rigidbody;
+
     private GameObject _visual;
+
+    private GameTimer _despawnTimer = new(3.0f);
     private Vector3 _startPos;
+    private LayerMask _hitLayerMask;
 
     private void Awake()
     {
@@ -15,8 +18,11 @@ public class Grenade : NetworkBehaviour
         _rigidbody = GetComponent<Rigidbody>();
         _rigidbody.isKinematic = true;
         _rigidbody.interpolation = RigidbodyInterpolation.None;
+
         _visual = transform.GetChild(0).gameObject;
         _visual.SetActive(false);
+
+        _hitLayerMask = LayerMask.GetMask("Player");
     }
 
     public override void OnNetworkSpawn()
@@ -50,7 +56,15 @@ public class Grenade : NetworkBehaviour
             _despawnTimer.Tick(Time.deltaTime);
             if (_despawnTimer.IsEnded)
             {
-                // TODO: damage player in area
+                var hits = Physics.OverlapSphere(transform.position, 5.0f, _hitLayerMask);
+                foreach (var hit in hits)
+                {
+                    if (hit.TryGetComponent<Player>(out var player))
+                    {
+                        player.ApplyDamage(50);
+                    }
+                }
+
                 _networkObject.Despawn();
             }
         }

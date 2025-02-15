@@ -643,6 +643,9 @@ public class Player : NetworkBehaviour
 
         foreach (var weapon in _weapons.Values)
             weapon.ResetWeapon();
+
+        IsThrowingGrenade = false;
+        _grenadeThrowTimer.Reset();
     }
 
     public void Respawn()
